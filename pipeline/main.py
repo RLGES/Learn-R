@@ -17,6 +17,11 @@ class StubEGraphAPI:
     
     def __init__(self):
         self.applied_rules = []
+        self.sequences = []
+    
+    def add_sequence(self, instructions):
+        """Add instruction sequence to e-graph (stub implementation)."""
+        self.sequences.append(instructions)
     
     def apply_rule(self, rule, match):
         """Record rule application (stub implementation)."""
@@ -25,6 +30,18 @@ class StubEGraphAPI:
             'tier': rule.tier,
             'match': match
         })
+    
+    def extract_best(self):
+        """Extract best sequence (stub - returns original for now)."""
+        if self.sequences:
+            # In a real implementation, this would return the optimized sequence
+            # For now, return the original sequence
+            return self.sequences[0]
+        return []
+    
+    def get_applied_rules(self):
+        """Get list of applied rule names."""
+        return [app['rule'] for app in self.applied_rules]
     
     def get_state(self) -> str:
         """Return current e-graph state (stub)."""
@@ -90,7 +107,11 @@ def main():
     # Create and run engine
     print("\n5. Running hierarchical rewrite engine...")
     engine = HierarchicalEngine(egraph, rules_by_tier)
-    engine.run(normalized_block, max_iterations_per_tier=5)
+    optimized_block = engine.run(normalized_block, max_iterations_per_tier=5)
+    
+    # Print optimized result
+    print(f"\nOptimized code ({len(optimized_block)} instructions):")
+    print(optimized_block)
     
     # Print e-graph state
     print("\n6. E-graph state after rewriting:")

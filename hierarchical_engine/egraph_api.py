@@ -69,6 +69,19 @@ class EGraphAPI(ABC):
         """
         pass
     
+    @abstractmethod
+    def get_applied_rules(self) -> list[str]:
+        """
+        Get names of rules that were successfully applied during e-graph expansion.
+        
+        This enables extraction feedback - the engine can determine which rules
+        contributed to the final optimized sequence.
+        
+        Returns:
+            List of rule names that were applied
+        """
+        pass
+    
     def get_stats(self) -> dict[str, Any]:
         """
         Get statistics about the e-graph state.

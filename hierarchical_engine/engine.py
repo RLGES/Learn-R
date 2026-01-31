@@ -6,6 +6,7 @@ from asm_ir import BasicBlock
 from rewrite_rules import RewriteRule
 from .matcher import Matcher
 from .tier_scheduler import get_max_iterations
+from evaluation import RuleMetrics
 
 
 class HierarchicalEngine:
@@ -28,6 +29,7 @@ class HierarchicalEngine:
         self.rules_by_tier = rules_by_tier
         self.matcher = Matcher()
         self.learned_rule_manager = learned_rule_manager
+        self.rule_metrics = RuleMetrics()
         self.stats = {
             'matches_per_tier': {},
             'rewrites_per_tier': {},
@@ -36,7 +38,7 @@ class HierarchicalEngine:
             'preconditions_failed': 0
         }
     
-    def run(self, block: BasicBlock, max_iterations_per_tier: int = None) -> None:
+    def run(self, block: BasicBlock, max_iterations_per_tier: int = None) -> BasicBlock:
         """
         Run the hierarchical rewrite engine.
         
@@ -44,9 +46,18 @@ class HierarchicalEngine:
             block: The basic block to optimize
             max_iterations_per_tier: Default maximum iterations per tier (if tier not configured)
                                     If None, uses 10 as default
+        
+        Returns:
+            Optimized basic block (extracted from e-graph)
         """
         if max_iterations_per_tier is None:
             max_iterations_per_tier = 10
+        
+        # Add original sequence to e-graph
+        self.egraph_api.add_sequence(block.instructions)
+        
+        # Calculate original cost
+        original_cost = len(block.instructions)
         
         # Sort tiers
         sorted_tiers = sorted(self.rules_by_tier.keys())
@@ -77,6 +88,12 @@ class HierarchicalEngine:
                 matches_found = False
                 
                 for rule in rules:
+                    # Check cooldown for Tier 3 (learned) rules
+                    if tier == 3 and self.learned_rule_manager:
+                        if self.learned_rule_manager.memory.is_on_cooldown(rule.name):
+                            print(f"  [Tier {tier}] Skipping '{rule.name}' (on cooldown)")
+                            continue
+                    
                     # Find all matches for this rule
                     matches = self.matcher.find_matches(rule.lhs, block)
                     tier_matches += len(matches)
@@ -90,12 +107,21 @@ class HierarchicalEngine:
                         matches_found = True
                         tier_rewrites += 1
                         self.stats['sequences_added'] += 1
+                        
+                        # Record metrics (before applying)
+                        cost_before = len(block.instructions)
+                        
                         print(f"  [Tier {tier}, Iter {iteration}] Applying rule '{rule.name}' at index {match.start_index}")
                         print(f"    Bindings: {match.bindings}")
                         
                         # Apply the rule via e-graph API
                         # The e-graph should track equivalences non-destructively
                         self.egraph_api.apply_rule(rule, match)
+                        
+                        # Record metrics (after applying)
+                        # Note: In a real e-graph, cost calculation would be more sophisticated
+                        cost_after = len(block.instructions)  # Simplified
+                        self.rule_metrics.record_application(rule.name, cost_before, cost_after, tier)
                 
                 # If no matches found in this iteration, move to next tier
                 if not matches_found:
@@ -112,6 +138,41 @@ class HierarchicalEngine:
         
         print("\n=== Rewrite engine completed ===")
         self._print_stats()
+        
+        # Extract best sequence from e-graph
+        print("\n=== Extracting optimized sequence ===")
+        optimized_instructions = self.egraph_api.extract_best()
+        optimized_cost = len(optimized_instructions)
+        
+        print(f"Original cost: {original_cost} instructions")
+        print(f"Optimized cost: {optimized_cost} instructions")
+        
+        # Provide feedback to learned rule manager
+        if self.learned_rule_manager:
+            applied_rules = self.egraph_api.get_applied_rules()
+            improvement = original_cost - optimized_cost
+            
+            print(f"\n=== Extraction Feedback ===")
+            print(f"Applied rules: {applied_rules}")
+            print(f"Improvement: {improvement} instructions")
+            
+            # Give feedback based on whether optimization improved the code
+            success = improvement > 0
+            
+            for rule_name in applied_rules:
+                # Only track Tier 3 (learned) rules
+                if '_learned' in rule_name:
+                    print(f"  Recording {'success' if success else 'failure'} for rule: {rule_name}")
+                    self.learned_rule_manager.update_memory(rule_name, success)
+                    # Update cooldown streak
+                    self.learned_rule_manager.memory.update_streak(rule_name, success)
+        
+        # Print rule metrics summary
+        print("\n=== Rule Metrics Summary ===")
+        self._print_rule_metrics()
+        
+        # Return optimized basic block
+        return BasicBlock(optimized_instructions)
     
     def _print_stats(self) -> None:
         """Print statistics about the rewrite process."""
@@ -139,3 +200,20 @@ class HierarchicalEngine:
             print(f"    Iterations: {iterations}")
         
         print("=" * 60)
+    
+    def _print_rule_metrics(self) -> None:
+        """Print rule metrics summary."""
+        if not self.rule_metrics.total_applications:
+            print("  No rule applications recorded")
+            return
+        
+        print("\nTop rules by cost reduction:")
+        top_by_delta = self.rule_metrics.get_top_rules(n=5, by='total_cost_delta')
+        for rule_name, delta in top_by_delta:
+            stats = self.rule_metrics.get_rule_stats(rule_name)
+            print(f"  {rule_name}: {delta:+d} total (avg: {stats['avg_cost_delta']:+.2f})")
+        
+        print("\nTop rules by applications:")
+        top_by_apps = self.rule_metrics.get_top_rules(n=5, by='applications')
+        for rule_name, apps in top_by_apps:
+            print(f"  {rule_name}: {int(apps)} applications")

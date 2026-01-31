@@ -3,7 +3,10 @@ Rule memory system for tracking rule effectiveness.
 
 Tracks success and failure rates of learned rules to prioritize them.
 """
-from typing import Dict
+from typing import Dict, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .rule_parser import ParsedRule
 
 
 class RuleMemory:
@@ -18,6 +21,14 @@ class RuleMemory:
         """Initialize empty rule memory."""
         self.successes: Dict[str, int] = {}
         self.failures: Dict[str, int] = {}
+        
+        # Cooldown system
+        self.failure_streaks: Dict[str, int] = {}
+        self.cooldown_rules: Dict[str, int] = {}
+        
+        # Cooldown configuration
+        self.COOLDOWN_THRESHOLD = 3  # Failures in a row to trigger cooldown
+        self.COOLDOWN_DURATION = 5   # Number of cycles to skip
     
     def record_success(self, rule_name: str) -> None:
         """
@@ -108,6 +119,97 @@ class RuleMemory:
         """Clear all memory (useful for testing or retraining)."""
         self.successes.clear()
         self.failures.clear()
+        self.failure_streaks.clear()
+        self.cooldown_rules.clear()
+    
+    def update_streak(self, rule_name: str, success: bool) -> None:
+        """
+        Update failure streak for cooldown tracking.
+        
+        Args:
+            rule_name: Name of the rule
+            success: Whether the rule succeeded or failed
+        """
+        if success:
+            # Reset streak on success
+            self.failure_streaks[rule_name] = 0
+        else:
+            # Increment failure streak
+            if rule_name not in self.failure_streaks:
+                self.failure_streaks[rule_name] = 0
+            self.failure_streaks[rule_name] += 1
+            
+            # Check if we should put rule on cooldown
+            if self.failure_streaks[rule_name] >= self.COOLDOWN_THRESHOLD:
+                self.cooldown_rules[rule_name] = self.COOLDOWN_DURATION
+                print(f"    ⏸ '{rule_name}' on cooldown for {self.COOLDOWN_DURATION} cycles")
+    
+    def is_on_cooldown(self, rule_name: str) -> bool:
+        """
+        Check if a rule is currently on cooldown.
+        
+        Args:
+            rule_name: Name of the rule
+        
+        Returns:
+            True if rule is on cooldown, False otherwise
+        """
+        if rule_name not in self.cooldown_rules:
+            return False
+        
+        cooldown_remaining = self.cooldown_rules[rule_name]
+        
+        if cooldown_remaining <= 0:
+            # Cooldown expired, remove from dict
+            del self.cooldown_rules[rule_name]
+            print(f"    ▶ '{rule_name}' cooldown expired")
+            return False
+        
+        # Decrement cooldown counter
+        self.cooldown_rules[rule_name] -= 1
+        return True
+    
+    def get_cooldown_status(self) -> Dict[str, int]:
+        """
+        Get cooldown status for all rules.
+        
+        Returns:
+            Dictionary mapping rule names to remaining cooldown cycles
+        """
+        return dict(self.cooldown_rules)
+    
+    def prune_rules(self, rules: 'List[ParsedRule]', threshold: float = 0.1) -> 'List[ParsedRule]':
+        """
+        Prune low-performing rules based on priority score.
+        
+        Filters out rules whose priority score falls below the threshold.
+        This prevents accumulation of ineffective rules.
+        
+        Args:
+            rules: List of ParsedRule objects to filter
+            threshold: Minimum priority score (default: 0.1)
+        
+        Returns:
+            Filtered list of rules above the threshold
+        """
+        from .rule_filter import extract_opcode
+        
+        pruned = []
+        for rule in rules:
+            # Generate rule name
+            rule_opcodes = [extract_opcode(instr) for instr in rule.lhs_seq]
+            rule_name = '_'.join(rule_opcodes).lower() + '_learned'
+            
+            # Check if rule meets threshold
+            score = self.priority_score(rule_name)
+            
+            # Keep rules that are above threshold OR haven't been tried yet
+            # (New rules get a chance to prove themselves)
+            has_history = (rule_name in self.successes) or (rule_name in self.failures)
+            if not has_history or score >= threshold:
+                pruned.append(rule)
+        
+        return pruned
     
     def __str__(self) -> str:
         """String representation of rule memory state."""

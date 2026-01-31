@@ -9,6 +9,7 @@ from .rule_parser import ParsedRule, parse_llm_output, rule_to_string
 from .rule_filter import filter_candidate_rules, validate_rule_safety, prioritize_by_reduction
 from .rule_memory import RuleMemory
 from .learned_rule_manager import LearnedRuleManager
+from .window_sampler import WindowSampler, sample_windows
 
 __all__ = [
     'generate_candidate_rules',
@@ -20,5 +21,8 @@ __all__ = [
     'validate_rule_safety',
     'prioritize_by_reduction',
     'RuleMemory',
-    'LearnedRuleManager'
+    'LearnedRuleManager',
+    'WindowSampler',
+    'sample_windows',
 ]
+
