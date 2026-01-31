@@ -5,6 +5,7 @@ from typing import Any
 from asm_ir import BasicBlock
 from rewrite_rules import RewriteRule
 from .matcher import Matcher
+from .tier_scheduler import get_max_iterations
 
 
 class HierarchicalEngine:
@@ -27,17 +28,23 @@ class HierarchicalEngine:
         self.stats = {
             'matches_per_tier': {},
             'rewrites_per_tier': {},
-            'iterations_per_tier': {}
+            'iterations_per_tier': {},
+            'sequences_added': 0,
+            'preconditions_failed': 0
         }
     
-    def run(self, block: BasicBlock, max_iterations_per_tier: int = 10) -> None:
+    def run(self, block: BasicBlock, max_iterations_per_tier: int = None) -> None:
         """
         Run the hierarchical rewrite engine.
         
         Args:
             block: The basic block to optimize
-            max_iterations_per_tier: Maximum iterations per tier
+            max_iterations_per_tier: Default maximum iterations per tier (if tier not configured)
+                                    If None, uses 10 as default
         """
+        if max_iterations_per_tier is None:
+            max_iterations_per_tier = 10
+        
         # Sort tiers
         sorted_tiers = sorted(self.rules_by_tier.keys())
         
@@ -47,11 +54,15 @@ class HierarchicalEngine:
             print(f"\n=== Processing Tier {tier} ===")
             rules = self.rules_by_tier[tier]
             
+            # Get tier-specific iteration limit
+            tier_max_iter = get_max_iterations(tier, max_iterations_per_tier)
+            print(f"  Max iterations for tier {tier}: {tier_max_iter}")
+            
             # Initialize stats for this tier
             tier_matches = 0
             tier_rewrites = 0
             
-            for iteration in range(max_iterations_per_tier):
+            for iteration in range(tier_max_iter):
                 matches_found = False
                 
                 for rule in rules:
@@ -62,10 +73,12 @@ class HierarchicalEngine:
                     for match in matches:
                         # Check precondition
                         if not rule.precondition(match.bindings):
+                            self.stats['preconditions_failed'] += 1
                             continue
                         
                         matches_found = True
                         tier_rewrites += 1
+                        self.stats['sequences_added'] += 1
                         print(f"  [Tier {tier}, Iter {iteration}] Applying rule '{rule.name}' at index {match.start_index}")
                         print(f"    Bindings: {match.bindings}")
                         
@@ -79,8 +92,8 @@ class HierarchicalEngine:
                     self.stats['iterations_per_tier'][tier] = iteration + 1
                     break
             else:
-                print(f"  Reached maximum iterations ({max_iterations_per_tier}) for tier {tier}")
-                self.stats['iterations_per_tier'][tier] = max_iterations_per_tier
+                print(f"  Reached maximum iterations ({tier_max_iter}) for tier {tier}")
+                self.stats['iterations_per_tier'][tier] = tier_max_iter
             
             # Store tier statistics
             self.stats['matches_per_tier'][tier] = tier_matches
@@ -101,6 +114,8 @@ class HierarchicalEngine:
         print(f"\nOverall:")
         print(f"  Total matches found: {total_matches}")
         print(f"  Total rewrites applied: {total_rewrites}")
+        print(f"  Instruction sequences added: {self.stats['sequences_added']}")
+        print(f"  Preconditions failed: {self.stats['preconditions_failed']}")
         
         print(f"\nPer-tier breakdown:")
         for tier in sorted(self.stats['matches_per_tier'].keys()):
