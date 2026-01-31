@@ -9,6 +9,14 @@ from .rule_parser import ParsedRule, parse_llm_output
 from .rule_filter import filter_candidate_rules, prioritize_by_reduction
 from .rule_memory import RuleMemory
 
+# Import verification (optional - gracefully handle if z3 not installed)
+try:
+    from verification import verify_rule
+    VERIFICATION_AVAILABLE = True
+except ImportError:
+    VERIFICATION_AVAILABLE = False
+    verify_rule = None
+
 
 class LearnedRuleManager:
     """
@@ -18,16 +26,31 @@ class LearnedRuleManager:
     memory-based prioritization.
     """
     
-    def __init__(self, existing_rule_names: Set[str] = None):
+    def __init__(self, existing_rule_names: Set[str] = None, enable_verification: bool = True):
         """
         Initialize the learned rule manager.
         
         Args:
             existing_rule_names: Set of existing rule names to avoid duplicates
+            enable_verification: If True, verify rules using SMT (requires z3-solver)
         """
         self.existing_rule_names = existing_rule_names or set()
         self.memory = RuleMemory()
         self.proposed_rules: List[ParsedRule] = []
+        self.enable_verification = enable_verification and VERIFICATION_AVAILABLE
+        
+        # Track verification stats
+        self.verification_stats = {
+            'total_checked': 0,
+            'verified': 0,
+            'rejected': 0,
+            'errors': 0
+        }
+        
+        if self.enable_verification:
+            print("✓ SMT verification enabled")
+        elif enable_verification:
+            print("⚠ SMT verification requested but z3-solver not available")
     
     def propose_rules(self, instruction_window: List[str]) -> List[ParsedRule]:
         """
@@ -37,12 +60,13 @@ class LearnedRuleManager:
         1. Generate candidates using LLM
         2. Parse LLM output into structured rules
         3. Filter invalid/duplicate rules
+        4. Verify rules using SMT (if enabled)
         
         Args:
             instruction_window: List of assembly instructions
         
         Returns:
-            List of valid, filtered ParsedRule objects
+            List of valid, filtered, and verified ParsedRule objects
         """
         # Step 1: Generate candidate rules via LLM
         llm_output = generate_candidate_rules(instruction_window)
@@ -56,10 +80,51 @@ class LearnedRuleManager:
             self.existing_rule_names
         )
         
-        # Store for later reference
-        self.proposed_rules = filtered_rules
+        # Step 4: Verify rules using SMT (if enabled)
+        if self.enable_verification:
+            verified_rules = self._verify_rules(filtered_rules)
+        else:
+            verified_rules = filtered_rules
         
-        return filtered_rules
+        # Store for later reference
+        self.proposed_rules = verified_rules
+        
+        return verified_rules
+    
+    def _verify_rules(self, rules: List[ParsedRule]) -> List[ParsedRule]:
+        """
+        Verify rules using SMT-based equivalence checking.
+        
+        Only rules that pass verification are kept.
+        
+        Args:
+            rules: List of parsed rules to verify
+        
+        Returns:
+            List of verified rules
+        """
+        verified = []
+        
+        for rule in rules:
+            self.verification_stats['total_checked'] += 1
+            
+            try:
+                is_verified = verify_rule(rule, timeout_ms=5000)
+                
+                if is_verified:
+                    verified.append(rule)
+                    self.verification_stats['verified'] += 1
+                    print(f"✓ Verified: {rule.lhs_seq[0] if rule.lhs_seq else 'rule'}")
+                else:
+                    self.verification_stats['rejected'] += 1
+                    print(f"✗ Rejected (not equivalent): {rule.lhs_seq[0] if rule.lhs_seq else 'rule'}")
+            
+            except Exception as e:
+                self.verification_stats['errors'] += 1
+                print(f"⚠ Verification error: {e}")
+                # Don't include rules that errored during verification
+        
+        return verified
     
     def update_memory(self, rule_name: str, success: bool) -> None:
         """
@@ -133,6 +198,15 @@ class LearnedRuleManager:
     def reset_memory(self) -> None:
         """Clear all rule memory (for testing or retraining)."""
         self.memory.reset()
+    
+    def get_verification_stats(self) -> dict:
+        """
+        Get verification statistics.
+        
+        Returns:
+            Dictionary with verification counts
+        """
+        return self.verification_stats.copy()
     
     def __str__(self) -> str:
         """String representation of manager state."""
