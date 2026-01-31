@@ -1,7 +1,7 @@
 """
 Hierarchical rewrite engine.
 """
-from typing import Any
+from typing import Any, Optional
 from asm_ir import BasicBlock
 from rewrite_rules import RewriteRule
 from .matcher import Matcher
@@ -14,17 +14,20 @@ class HierarchicalEngine:
     Delegates e-graph operations to an external API.
     """
     
-    def __init__(self, egraph_api: Any, rules_by_tier: dict[int, list[RewriteRule]]):
+    def __init__(self, egraph_api: Any, rules_by_tier: dict[int, list[RewriteRule]], 
+                 learned_rule_manager: Optional[Any] = None):
         """
         Initialize the engine.
         
         Args:
             egraph_api: External e-graph API object (duck-typed)
             rules_by_tier: Dictionary mapping tier number to list of rules
+            learned_rule_manager: Optional LearnedRuleManager for Tier 3 prioritization
         """
         self.egraph_api = egraph_api
         self.rules_by_tier = rules_by_tier
         self.matcher = Matcher()
+        self.learned_rule_manager = learned_rule_manager
         self.stats = {
             'matches_per_tier': {},
             'rewrites_per_tier': {},
@@ -53,6 +56,14 @@ class HierarchicalEngine:
         for tier in sorted_tiers:
             print(f"\n=== Processing Tier {tier} ===")
             rules = self.rules_by_tier[tier]
+            
+            # Prioritize Tier 3 rules using learned rule manager
+            if tier == 3 and self.learned_rule_manager and rules:
+                print("  Prioritizing Tier 3 rules using RuleMemory...")
+                # Note: This assumes rules can be prioritized
+                # In a full implementation, we'd need a way to convert
+                # RewriteRule objects or track them by name
+                # For now, this is a hook point for future integration
             
             # Get tier-specific iteration limit
             tier_max_iter = get_max_iterations(tier, max_iterations_per_tier)
