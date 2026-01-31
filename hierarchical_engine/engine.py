@@ -24,6 +24,11 @@ class HierarchicalEngine:
         self.egraph_api = egraph_api
         self.rules_by_tier = rules_by_tier
         self.matcher = Matcher()
+        self.stats = {
+            'matches_per_tier': {},
+            'rewrites_per_tier': {},
+            'iterations_per_tier': {}
+        }
     
     def run(self, block: BasicBlock, max_iterations_per_tier: int = 10) -> None:
         """
@@ -42,12 +47,17 @@ class HierarchicalEngine:
             print(f"\n=== Processing Tier {tier} ===")
             rules = self.rules_by_tier[tier]
             
+            # Initialize stats for this tier
+            tier_matches = 0
+            tier_rewrites = 0
+            
             for iteration in range(max_iterations_per_tier):
                 matches_found = False
                 
                 for rule in rules:
                     # Find all matches for this rule
                     matches = self.matcher.find_matches(rule.lhs, block)
+                    tier_matches += len(matches)
                     
                     for match in matches:
                         # Check precondition
@@ -55,6 +65,7 @@ class HierarchicalEngine:
                             continue
                         
                         matches_found = True
+                        tier_rewrites += 1
                         print(f"  [Tier {tier}, Iter {iteration}] Applying rule '{rule.name}' at index {match.start_index}")
                         print(f"    Bindings: {match.bindings}")
                         
@@ -65,8 +76,40 @@ class HierarchicalEngine:
                 # If no matches found in this iteration, move to next tier
                 if not matches_found:
                     print(f"  No more matches found in iteration {iteration}, moving to next tier")
+                    self.stats['iterations_per_tier'][tier] = iteration + 1
                     break
             else:
                 print(f"  Reached maximum iterations ({max_iterations_per_tier}) for tier {tier}")
+                self.stats['iterations_per_tier'][tier] = max_iterations_per_tier
+            
+            # Store tier statistics
+            self.stats['matches_per_tier'][tier] = tier_matches
+            self.stats['rewrites_per_tier'][tier] = tier_rewrites
         
         print("\n=== Rewrite engine completed ===")
+        self._print_stats()
+    
+    def _print_stats(self) -> None:
+        """Print statistics about the rewrite process."""
+        print("\n" + "=" * 60)
+        print("REWRITE ENGINE STATISTICS")
+        print("=" * 60)
+        
+        total_matches = sum(self.stats['matches_per_tier'].values())
+        total_rewrites = sum(self.stats['rewrites_per_tier'].values())
+        
+        print(f"\nOverall:")
+        print(f"  Total matches found: {total_matches}")
+        print(f"  Total rewrites applied: {total_rewrites}")
+        
+        print(f"\nPer-tier breakdown:")
+        for tier in sorted(self.stats['matches_per_tier'].keys()):
+            matches = self.stats['matches_per_tier'].get(tier, 0)
+            rewrites = self.stats['rewrites_per_tier'].get(tier, 0)
+            iterations = self.stats['iterations_per_tier'].get(tier, 0)
+            print(f"  Tier {tier}:")
+            print(f"    Matches: {matches}")
+            print(f"    Rewrites: {rewrites}")
+            print(f"    Iterations: {iterations}")
+        
+        print("=" * 60)
