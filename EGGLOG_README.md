@@ -110,7 +110,52 @@ Complete equality saturation pipeline.
 python egraph_bridge/egglog_pipeline.py
 ```
 
-## Test Commands
+---
+
+## Run the Pipeline
+
+The main entry point is `run_pipeline.py` - runs full LLM-guided equality saturation with Z3 verification:
+
+```bash
+# Basic run (with Z3 verification)
+python run_pipeline.py
+
+# Verbose output (shows LLM response + rewrite trees)
+python run_pipeline.py --verbose
+
+# Skip Z3 verification
+python run_pipeline.py --no-verify
+```
+
+**What it does:**
+1. Loads dependencies (egglog, Z3, LLM)
+2. Calls LLM to generate rewrite rules
+3. Verifies rules with Z3 SMT solver
+4. Applies verified rules to test expressions
+5. Shows optimization results + rewrite trees for RL
+
+**Example output:**
+```
+LLM Rules Generated: 5
+  ✓ VERIFIED: 1 rule (passed Z3)
+  ✗ REJECTED: 4 rules (failed verification)
+
+Expressions Optimized: 4/6
+  x + 0 → x         ✓ OPTIMIZED
+  x * 1 → x         ✓ OPTIMIZED
+  x - x → 0         ✓ OPTIMIZED
+  x ^ x → 0         ✓ OPTIMIZED
+```
+
+---
+
+## Test Suites
+
+| Script | Description |
+|--------|-------------|
+| `python test_egglog_integration.py` | Full integration tests (7 tests) |
+| `python test_rl_api.py` | RL Agent API tests (6 tests) |
+| `python run_pipeline.py --verbose` | Full pipeline demo |
 
 ### Run All Tests
 ```bash
