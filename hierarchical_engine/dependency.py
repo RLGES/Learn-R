@@ -65,8 +65,8 @@ def are_independent(inst1: Instruction, inst2: Instruction) -> bool:
     """
     Check if two instructions are independent (can be reordered).
     
-    Instructions are independent if they have no register dependencies
-    and no flag dependencies.
+    Instructions are independent if they have no register dependencies,
+    no flag dependencies, and no memory dependencies.
     
     Args:
         inst1: First instruction
@@ -75,4 +75,26 @@ def are_independent(inst1: Instruction, inst2: Instruction) -> bool:
     Returns:
         True if instructions are independent, False otherwise
     """
-    return not has_register_dependency(inst1, inst2) and not has_flag_dependency(inst1, inst2)
+    # Check register and flag dependencies
+    if has_register_dependency(inst1, inst2) or has_flag_dependency(inst1, inst2):
+        return False
+    
+    # Check memory dependencies
+    # Conservative approach: any memory operation conflicts with any other memory operation
+    # This avoids incorrect reordering without full alias analysis
+    
+    # Memory write conflicts with any memory read or write
+    if inst1.mem_write and (inst2.mem_read or inst2.mem_write):
+        return False
+    
+    if inst2.mem_write and (inst1.mem_read or inst1.mem_write):
+        return False
+    
+    # Memory read conflicts with memory write (but not with other reads)
+    if inst1.mem_read and inst2.mem_write:
+        return False
+    
+    if inst2.mem_read and inst1.mem_write:
+        return False
+    
+    return True

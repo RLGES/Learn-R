@@ -116,7 +116,7 @@ class HierarchicalEngine:
                         
                         # Apply the rule via e-graph API
                         # The e-graph should track equivalences non-destructively
-                        self.egraph_api.apply_rule(rule, match)
+                        self.egraph_api.apply_rewrite(rule, match)
                         
                         # Record metrics (after applying)
                         # Note: In a real e-graph, cost calculation would be more sophisticated

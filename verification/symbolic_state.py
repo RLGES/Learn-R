@@ -1,10 +1,10 @@
 """
 Symbolic machine state for SMT verification.
 
-Models registers and flags symbolically using z3.
+Models registers, flags, and memory symbolically using z3.
 """
 try:
-    from z3 import BitVec, Bool, BitVecRef, BoolRef
+    from z3 import BitVec, Bool, BitVecRef, BoolRef, Array, BitVecSort
     Z3_AVAILABLE = True
 except ImportError:
     Z3_AVAILABLE = False
@@ -55,6 +55,11 @@ class SymbolicState:
         for flag in self.FLAG_NAMES:
             var_name = f"{prefix}{flag}" if prefix else flag
             self.flags[flag] = Bool(var_name)
+        
+        # Initialize symbolic memory as a z3 Array
+        # Array maps 64-bit addresses to 64-bit values
+        mem_name = f"{prefix}mem" if prefix else "mem"
+        self.memory = Array(mem_name, BitVecSort(64), BitVecSort(64))
     
     def copy(self, new_prefix: str = "") -> 'SymbolicState':
         """
@@ -75,6 +80,9 @@ class SymbolicState:
         # Copy flag bindings
         for flag in self.flags:
             new_state.flags[flag] = self.flags[flag]
+        
+        # Copy memory
+        new_state.memory = self.memory
         
         return new_state
     
@@ -139,6 +147,29 @@ class SymbolicState:
         """
         name_lower = name.lower()
         self.flags[name_lower] = value
+    
+    def read_memory(self, address: 'BitVecRef') -> 'BitVecRef':
+        """
+        Read from symbolic memory.
+        
+        Args:
+            address: 64-bit address (BitVecRef)
+        
+        Returns:
+            64-bit value at that address (BitVecRef)
+        """
+        return self.memory[address]
+    
+    def write_memory(self, address: 'BitVecRef', value: 'BitVecRef') -> None:
+        """
+        Write to symbolic memory.
+        
+        Args:
+            address: 64-bit address (BitVecRef)
+            value: 64-bit value to write (BitVecRef)
+        """
+        from z3 import Store
+        self.memory = Store(self.memory, address, value)
     
     def __str__(self) -> str:
         """String representation of state."""
