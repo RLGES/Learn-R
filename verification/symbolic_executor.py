@@ -25,7 +25,8 @@ class SymbolicExecutor:
         """Initialize executor."""
         self.supported_opcodes = {
             'MOV', 'ADD', 'SUB', 'CMP',         # Basic operations
-            'IMUL', 'AND', 'OR', 'XOR', 'NOT',  # Extended arithmetic and bitwise
+            'IMUL', 'MUL',                       # Multiplication
+            'AND', 'OR', 'XOR', 'NOT',           # Bitwise operations
             'SHL', 'SHR'                         # Shift operations
         }
     
@@ -313,7 +314,7 @@ class SymbolicExecutor:
             self.execute_add(instr, state)
         elif opcode == 'SUB':
             self.execute_sub(instr, state)
-        elif opcode == 'IMUL':
+        elif opcode == 'IMUL' or opcode == 'MUL':
             self.execute_imul(instr, state)
         elif opcode == 'CMP':
             self.execute_cmp(instr, state)
