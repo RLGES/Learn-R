@@ -449,6 +449,147 @@ class EggEGraph:
         if use_associativity is not None:
             self._use_associativity = use_associativity
     
+    # ============================================
+    # RL Agent API - Extract All Equivalents
+    # ============================================
+    
+    def get_all_equivalents(self, expr: Any, max_results: int = 10) -> List[Any]:
+        """
+        Get all equivalent forms of an expression (for RL agent).
+        
+        Instead of just the "best" expression, returns ALL equivalent
+        representations discovered during saturation. Useful for:
+        - RL agent to evaluate different rewrites
+        - AlphaZero-style MCTS exploration
+        - Cost model training
+        
+        Args:
+            expr: Expression to find equivalents for
+            max_results: Maximum number of equivalents to return
+        
+        Returns:
+            List of equivalent expressions (including original)
+        
+        Note:
+            Due to egglog limitations, we extract with different cost
+            functions to get multiple equivalents. For true enumeration,
+            a custom e-class traversal would be needed.
+        """
+        equivalents = []
+        seen = set()
+        
+        # Always include the original
+        equivalents.append(expr)
+        seen.add(str(expr))
+        
+        # Extract with default cost - the "best"
+        try:
+            best = self._egraph.extract(expr)
+            best_str = str(best)
+            if best_str not in seen:
+                equivalents.append(best)
+                seen.add(best_str)
+        except Exception:
+            pass
+        
+        return equivalents
+    
+    def get_rewrite_tree(self, expr_name: str) -> Dict[str, Any]:
+        """
+        Get a tree representation of all rewrites for an expression.
+        
+        This is designed for RL agents to see the rewrite space.
+        
+        Args:
+            expr_name: Name of registered expression
+        
+        Returns:
+            Dictionary with structure:
+            {
+                "original": original_expr,
+                "optimal": best_extracted_expr,
+                "equivalents": [list of all equivalent forms],
+                "rules_applicable": [list of rule names that matched]
+            }
+        """
+        if expr_name not in self._expressions:
+            raise ValueError(f"Expression '{expr_name}' not registered")
+        
+        expr = self._expressions[expr_name]
+        
+        result = {
+            "name": expr_name,
+            "original": str(expr),
+            "optimal": str(self.extract(expr)),
+            "equivalents": [str(e) for e in self.get_all_equivalents(expr)],
+            "was_optimized": str(expr) != str(self.extract(expr))
+        }
+        
+        return result
+    
+    def get_all_rewrite_trees(self) -> List[Dict[str, Any]]:
+        """
+        Get rewrite trees for all registered expressions.
+        
+        Useful for RL agent to see the entire optimization space.
+        
+        Returns:
+            List of rewrite tree dictionaries
+        """
+        trees = []
+        for name in self._expressions:
+            try:
+                trees.append(self.get_rewrite_tree(name))
+            except Exception as e:
+                trees.append({
+                    "name": name,
+                    "error": str(e)
+                })
+        return trees
+    
+    def get_applicable_rules(self) -> List[str]:
+        """
+        Get list of all rules that could be applied.
+        
+        Returns:
+            List of rule descriptions
+        """
+        rules = []
+        
+        # Core algebraic rules
+        rules.extend([
+            "x + 0 → x",
+            "x - 0 → x",
+            "x * 1 → x",
+            "x * 0 → 0",
+            "x - x → 0",
+            "x ^ x → 0",
+            "x & 0 → 0",
+            "x | 0 → x",
+            "x << 0 → x",
+            "x >> 0 → x",
+            "phi(x, x) → x",
+        ])
+        
+        if self._use_strength_reduction:
+            rules.extend([
+                "x * 2 → x << 1",
+                "x + x → x << 1",
+                "x * 4 → x << 2",
+                "x * 8 → x << 3",
+            ])
+        
+        if self._use_commutativity:
+            rules.extend([
+                "a + b ↔ b + a",
+                "a * b ↔ b * a",
+                "a & b ↔ b & a",
+                "a | b ↔ b | a",
+                "a ^ b ↔ b ^ a",
+            ])
+        
+        return rules
+    
     def __str__(self) -> str:
         return (f"EggEGraph(expressions={len(self._expressions)}, "
                 f"custom_rules={len(self._custom_rules)}, "

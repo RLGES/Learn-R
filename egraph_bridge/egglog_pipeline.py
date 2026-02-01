@@ -50,6 +50,7 @@ class OptimizationResult:
     llm_rules_added: int
     saturation_iterations: int
     errors: List[str] = field(default_factory=list)
+    rewrite_trees: List[Dict[str, Any]] = field(default_factory=list)  # For RL
     
     def get_summary(self) -> str:
         """Get a summary of the optimization."""
@@ -72,6 +73,26 @@ class OptimizationResult:
                 changes += 1
         
         lines.append(f"  - Expressions optimized: {changes}")
+        
+        return "\n".join(lines)
+    
+    def get_rewrite_summary(self) -> str:
+        """Get detailed rewrite information for RL agent."""
+        lines = ["Rewrite Summary (for RL):"]
+        
+        for tree in self.rewrite_trees:
+            name = tree.get("name", "unknown")
+            orig = tree.get("original", "?")
+            opt = tree.get("optimal", "?")
+            was_opt = tree.get("was_optimized", False)
+            
+            status = "✓ optimized" if was_opt else "- unchanged"
+            lines.append(f"  {name}: {orig} → {opt} [{status}]")
+            
+            # Show all equivalents
+            equivs = tree.get("equivalents", [])
+            if len(equivs) > 1:
+                lines.append(f"    Equivalents: {equivs}")
         
         return "\n".join(lines)
 
@@ -274,14 +295,43 @@ Generate 3-5 optimization rules that:
                 errors.append(f"Failed to extract {name}: {e}")
                 optimized[name] = expr
         
+        # Get rewrite trees for RL agent
+        rewrite_trees = self._egraph.get_all_rewrite_trees()
+        
         return OptimizationResult(
             original_expressions=original,
             optimized_expressions=optimized,
             rules_applied=stats.get('rules_count', 0),
             llm_rules_added=len(self._llm_rules),
             saturation_iterations=stats.get('iterations', 0),
-            errors=errors
+            errors=errors,
+            rewrite_trees=rewrite_trees
         )
+    
+    def get_rewrite_trees(self) -> List[Dict[str, Any]]:
+        """
+        Get rewrite trees for all expressions (for RL agent).
+        
+        Call this AFTER optimize() to get the rewrite space.
+        
+        Returns:
+            List of rewrite tree dictionaries, each containing:
+            - name: Expression name
+            - original: Original expression string
+            - optimal: Best extracted expression
+            - equivalents: All equivalent forms
+            - was_optimized: True if expression was changed
+        """
+        return self._egraph.get_all_rewrite_trees()
+    
+    def get_applicable_rules(self) -> List[str]:
+        """
+        Get list of all applicable rewrite rules.
+        
+        Returns:
+            List of rule descriptions (e.g., "x + 0 → x")
+        """
+        return self._egraph.get_applicable_rules()
     
     def optimize_single(self, expr: Any) -> Any:
         """
