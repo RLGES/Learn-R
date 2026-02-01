@@ -93,6 +93,13 @@ def expr_to_instruction(var_name: str, expr: ExprNode) -> Instruction:
         phi_srcs = [get_operand_string(child) for child in expr.children]
         return Instruction("PHI", var_name, phi_srcs)
     
+    # Memory load operations
+    if expr.op == "load" and len(expr.children) == 1:
+        # LOAD instruction: MOV dst, [address]
+        addr_expr = expr.children[0]
+        addr_str = get_address_string(addr_expr)
+        return Instruction("LOAD", var_name, [addr_str])
+    
     # Default: MOV
     return Instruction("MOV", var_name, ["0"])
 
@@ -114,6 +121,52 @@ def get_operand_string(expr: ExprNode) -> str:
     # For complex expressions, would need temporary variable
     # For now, return a placeholder
     return f"({expr})"
+
+
+def get_address_string(expr: ExprNode) -> str:
+    """
+    Convert address expression to memory operand string.
+    
+    Handles:
+    - Var(base)           → [base]
+    - add(Var(base), Const(n))  → [base+n]
+    - sub(Var(base), Const(n))  → [base-n]
+    
+    Args:
+        expr: Address expression
+    
+    Returns:
+        Memory operand string (e.g., "[rax]", "[rbx+8]")
+    """
+    # Simple variable: [base]
+    if expr.is_variable():
+        return f"[{expr.value}]"
+    
+    # Constant: [address] (absolute addressing)
+    if expr.is_constant():
+        return f"[{expr.value}]"
+    
+    # add(base, offset): [base+offset]
+    if expr.op == "add" and len(expr.children) == 2:
+        base = expr.children[0]
+        offset = expr.children[1]
+        
+        if base.is_variable() and offset.is_constant():
+            return f"[{base.value}+{offset.value}]"
+        elif base.is_constant() and offset.is_variable():
+            return f"[{offset.value}+{base.value}]"
+    
+    # sub(base, offset): [base-offset]
+    if expr.op == "sub" and len(expr.children) == 2:
+        base = expr.children[0]
+        offset = expr.children[1]
+        
+        if base.is_variable() and offset.is_constant():
+            return f"[{base.value}-{offset.value}]"
+    
+    # Complex expression: need temporary
+    # For now, just return simple representation
+    return f"[{expr}]"
 
 
 def needs_temporary(expr: ExprNode) -> bool:
@@ -160,6 +213,16 @@ def linearize_expression(expr: ExprNode, var_name: str, temp_counter: List[int])
     if expr.op == "phi":
         instructions.append(expr_to_instruction(var_name, expr))
         return instructions
+    
+    # Load expressions with simple addresses can be converted directly
+    # Complex address computations will be handled by linearizing children
+    if expr.op == "load" and len(expr.children) == 1:
+        addr_expr = expr.children[0]
+        # If address is simple (var or constant or simple add/sub), convert directly
+        if (addr_expr.is_variable() or addr_expr.is_constant() or
+            (addr_expr.op in ["add", "sub"] and len(addr_expr.children) == 2)):
+            instructions.append(expr_to_instruction(var_name, expr))
+            return instructions
     
     # Complex expression: linearize children first
     operands = []

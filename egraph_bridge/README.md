@@ -211,6 +211,57 @@ MOV x_2, 10            # PHI simplified
 MOV y_0, 15            # Constant folded
 ```
 
+### 6. Memory Load Optimization ⭐ NEW
+
+**Load as Pure Expression:**
+
+```
+LOAD x, [addr]  →  load(address)    # Treat as expression
+```
+
+**Common Subexpression Elimination:**
+
+```
+LOAD x, [ptr]
+LOAD y, [ptr]    # Same address
+# E-graph recognizes as identical: load(ptr) = load(ptr)
+```
+
+**PHI with Identical Loads:**
+
+```
+# Control flow:
+if (...) x = load(addr)
+else     x = load(addr)
+# After merge:
+PHI x, [load(addr), load(addr)] → load(addr)
+```
+
+**Address Computation:**
+
+```
+[base]          → load(Var(base))
+[base+8]        → load(add(Var(base), Const(8)))
+[base-16]       → load(sub(Var(base), Const(16)))
+```
+
+**Example: Array Access:**
+
+```python
+# Original:
+MOV base, 0x1000
+LOAD x0, [base+0]     # arr[0]
+LOAD x1, [base+8]     # arr[1]
+LOAD x2, [base+16]    # arr[2]
+
+# Expressions:
+x0 = load(add(base, 0))
+x1 = load(add(base, 8))
+x2 = load(add(base, 16))
+
+# Each distinct address = distinct load
+```
+
 ## Example: Complete Optimization
 
 **Original SSA:**
@@ -377,8 +428,11 @@ Run comprehensive tests:
 # Core e-graph bridge tests
 python examples/test_egraph_bridge.py
 
-# PHI node support tests ⭐ NEW
+# PHI node support tests ⭐
 python examples/test_phi_nodes.py
+
+# Memory load support tests ⭐ NEW
+python examples/test_memory_loads.py
 ```
 
 Run demonstrations:
@@ -387,8 +441,11 @@ Run demonstrations:
 # Basic pipeline demo
 python pipeline/ssa_egraph_pipeline.py
 
-# PHI optimization demo ⭐ NEW
+# PHI optimization demo ⭐
 python examples/demo_phi_optimization.py
+
+# Memory load optimization demo ⭐ NEW
+python examples/demo_memory_loads.py
 ```
 
 Tests cover:
@@ -402,6 +459,10 @@ Tests cover:
 - ✅ **PHI node conversion and simplification** ⭐
 - ✅ **PHI constant propagation** ⭐
 - ✅ **Nested PHI nodes** ⭐
+- ✅ **Memory load expressions** ⭐ NEW
+- ✅ **Load address computation ([base+offset])** ⭐ NEW
+- ✅ **PHI with identical loads simplification** ⭐ NEW
+- ✅ **Load deduplication via hash-consing** ⭐ NEW
 
 ## API Reference
 

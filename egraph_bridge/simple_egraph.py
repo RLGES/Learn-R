@@ -17,9 +17,14 @@ class ENode:
     - Binary ops: add, sub, mul, and, or, xor, etc.
     - Unary ops: not, neg, etc.
     - N-ary ops: phi (for SSA phi nodes with multiple inputs)
+    - Memory ops: load(address) for memory reads
     
     Example: add(e1, e2) where e1 and e2 are e-class IDs
     Example: phi(e1, e2, e3) for SSA phi node merging 3 values
+    Example: load(e1) for memory load from address in e1
+    
+    Hash-consing ensures identical expressions share e-classes:
+    - load(addr1) and load(addr1) will be in the same e-class
     """
     op: str
     children: List[Any] = field(default_factory=list)  # Can be int (eclass IDs) or values

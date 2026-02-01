@@ -92,6 +92,54 @@ def parse_operand(operand: str) -> ExprNode:
     return ExprNode(op="var", value=operand)
 
 
+def parse_memory_address(addr_str: str, expr_map: Dict[str, ExprNode]) -> ExprNode:
+    """
+    Parse memory address into an address expression.
+    
+    Handles:
+    - [base]          → Var(base)
+    - [base+offset]   → add(Var(base), Const(offset))
+    - [base-offset]   → sub(Var(base), Const(offset))
+    
+    Args:
+        addr_str: Memory address string (e.g., "[rax]", "[rbx+8]")
+        expr_map: Map of variable names to their expression nodes
+    
+    Returns:
+        ExprNode representing the address computation
+    """
+    # Remove brackets
+    if addr_str.startswith('[') and addr_str.endswith(']'):
+        inner = addr_str[1:-1]
+    else:
+        # Not a memory operand, treat as regular operand
+        return expr_map.get(addr_str, parse_operand(addr_str))
+    
+    # Handle [base+offset] or [base-offset]
+    if '+' in inner:
+        parts = inner.split('+')
+        base = parts[0].strip()
+        offset = parts[1].strip()
+        
+        base_expr = expr_map.get(base, parse_operand(base))
+        offset_expr = parse_operand(offset)
+        return ExprNode(op="add", children=[base_expr, offset_expr])
+    
+    elif '-' in inner:
+        parts = inner.split('-')
+        base = parts[0].strip()
+        offset = parts[1].strip()
+        
+        base_expr = expr_map.get(base, parse_operand(base))
+        offset_expr = parse_operand(offset)
+        return ExprNode(op="sub", children=[base_expr, offset_expr])
+    
+    else:
+        # Just [base]
+        base = inner.strip()
+        return expr_map.get(base, parse_operand(base))
+
+
 def instruction_to_expr(instr: Instruction, expr_map: Dict[str, ExprNode]) -> Optional[ExprNode]:
     """
     Convert a single SSA instruction to an expression node.
@@ -167,8 +215,21 @@ def instruction_to_expr(instr: Instruction, expr_map: Dict[str, ExprNode]) -> Op
         # CMP doesn't produce a value we can track, skip it
         return None
     
-    # Load/Store - not yet supported in expression form
-    elif instr.opcode in ['LOAD', 'STORE']:
+    # Memory operations
+    elif instr.opcode == 'LOAD':
+        # LOAD: MOV dst, [address]
+        # Treat as pure expression: load(address)
+        if len(instr.srcs) != 1:
+            return None
+        
+        addr_str = instr.srcs[0]
+        # Parse address expression
+        addr_expr = parse_memory_address(addr_str, expr_map)
+        return ExprNode(op="load", children=[addr_expr])
+    
+    elif instr.opcode == 'STORE':
+        # STORE: MOV [address], src
+        # Stores have side effects, don't convert to expression
         return None
     
     # Default: unsupported operation
@@ -326,10 +387,13 @@ def simplify_expression(expr: ExprNode) -> ExprNode:
                 return ExprNode(op="const", value=result)
     
     # Phi simplification: if all inputs are identical, replace with that input
+    # This works for all expression types including load expressions
     if expr.op == "phi" and len(expr.children) > 0:
         # Check if all children are structurally equal
         first_child = expr.children[0]
         if all(child == first_child for child in expr.children):
+            # All inputs identical: PHI(x, x, x) → x
+            # This includes: PHI(load(a), load(a)) → load(a)
             return first_child
     
     # Identity operations
