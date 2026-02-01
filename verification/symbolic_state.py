@@ -86,7 +86,7 @@ class SymbolicState:
         
         return new_state
     
-    def get_register(self, name: str) -> 'BitVecRef':
+    def get_register(self, name: str):
         """
         Get register by name (case-insensitive).
         
@@ -104,7 +104,7 @@ class SymbolicState:
             return self.registers[name_lower]
         raise KeyError(f"Unknown register: {name}")
     
-    def set_register(self, name: str, value: 'BitVecRef') -> None:
+    def set_register(self, name: str, value) -> None:
         """
         Set register value.
         
@@ -119,7 +119,7 @@ class SymbolicState:
             # Allow setting new registers dynamically
             self.registers[name_lower] = value
     
-    def get_flag(self, name: str) -> 'BoolRef':
+    def get_flag(self, name: str):
         """
         Get flag by name (case-insensitive).
         
@@ -137,7 +137,7 @@ class SymbolicState:
             return self.flags[name_lower]
         raise KeyError(f"Unknown flag: {name}")
     
-    def set_flag(self, name: str, value: 'BoolRef') -> None:
+    def set_flag(self, name: str, value) -> None:
         """
         Set flag value.
         
@@ -148,7 +148,7 @@ class SymbolicState:
         name_lower = name.lower()
         self.flags[name_lower] = value
     
-    def read_memory(self, address: 'BitVecRef') -> 'BitVecRef':
+    def read_memory(self, address):
         """
         Read from symbolic memory.
         
@@ -160,7 +160,7 @@ class SymbolicState:
         """
         return self.memory[address]
     
-    def write_memory(self, address: 'BitVecRef', value: 'BitVecRef') -> None:
+    def write_memory(self, address, value) -> None:
         """
         Write to symbolic memory.
         

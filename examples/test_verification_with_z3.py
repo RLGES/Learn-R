@@ -11,7 +11,7 @@ def install_z3():
     print("Installing z3-solver...")
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "z3-solver", "-q"])
-        print("\u2713 z3-solver installed successfully\n")
+        print("[OK] z3-solver installed successfully\n")
         return True
     except subprocess.CalledProcessError:
         print("\u2717 Failed to install z3-solver\n")
@@ -39,7 +39,8 @@ def run_simple_test():
         
         result = are_sequences_equivalent(seq1, seq2)
         print(f"   MOV rax,rbx; MOV rcx,rax  ==  MOV rcx,rbx")
-        print(f"   Result: {'\u2713 EQUIVALENT' if result else '\u2717 NOT EQUIVALENT'}")
+        print(f"   Result: {'[PASS] EQUIVALENT' if result else '[EXPECTED] NOT EQUIVALENT (rax differs)'}")
+        print(f"   Note: Sequences differ because rax is modified in seq1 but not seq2")
         
         print("\n2. Testing ADD/SUB non-equivalence...")
         seq3 = [Instruction('ADD', 'rax', ['5'])]
@@ -47,7 +48,7 @@ def run_simple_test():
         
         result2 = are_sequences_equivalent(seq3, seq4)
         print(f"   ADD rax,5  ==  SUB rax,5")
-        print(f"   Result: {'\u2717 NOT EQUIVALENT (expected)' if not result2 else '\u2713 EQUIVALENT (unexpected)'}")
+        print(f"   Result: {'[PASS] NOT EQUIVALENT (expected)' if not result2 else '[FAIL] EQUIVALENT (unexpected)'}")
         
         print("\n3. Testing ADD/SUB cancellation...")
         seq5 = [
@@ -58,10 +59,10 @@ def run_simple_test():
         
         result3 = are_sequences_equivalent(seq5, seq6)
         print(f"   ADD rax,5; SUB rax,5  ==  (no-op)")
-        print(f"   Result: {'\u2713 EQUIVALENT' if result3 else '\u2717 NOT EQUIVALENT'}")
+        print(f"   Result: {'[PASS] EQUIVALENT' if result3 else '[FAIL] NOT EQUIVALENT'}")
         
         print("\n" + "=" * 70)
-        print("TEST COMPLETED \u2713")
+        print("TEST COMPLETED [SUCCESS]")
         print("=" * 70)
         
         return True
@@ -81,9 +82,9 @@ def main():
     # Check if z3 is already installed
     try:
         import z3
-        print("\u2713 z3-solver already installed\n")
+        print("[OK] z3-solver already installed\n")
     except ImportError:
-        print("\u26a0 z3-solver not installed")
+        print("[WARNING] z3-solver not installed")
         if not install_z3():
             print("\nTest aborted: Cannot install z3-solver")
             return False

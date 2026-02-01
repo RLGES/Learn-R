@@ -11,25 +11,30 @@ Extended the assembly optimizer to support memory operations with load/store tra
 Added memory operation tracking:
 
 **New Fields:**
+
 - `mem_read: bool` - True if instruction reads from memory
 - `mem_write: bool` - True if instruction writes to memory
 
 **Updated Methods:**
 
 **`reads()` method:**
+
 - Extracts base registers from memory operands (e.g., `[rax]` → reads `rax`)
 - Handles memory addressing: `MOV r, [base]` reads `base` register
 - Handles memory stores: `MOV [base], r` reads both `base` and `r`
 
 **`writes()` method:**
+
 - Memory stores (`MOV [addr], r`) don't write to registers
 - Only register destinations write to registers
 
 **New Helper Methods:**
+
 - `is_memory_operand(operand)` - Check if operand is memory reference (`[...]`)
 - `get_memory_base(operand)` - Extract base register from memory operand
 
 **Supported Memory Formats:**
+
 - `[reg]` - Direct addressing (e.g., `[rax]`)
 - `[reg+offset]` - Base + displacement (e.g., `[rbx+8]`)
 - `[reg-offset]` - Base - displacement (e.g., `[rcx-16]`)
@@ -39,6 +44,7 @@ Added memory operation tracking:
 Extended `are_independent()` to handle memory dependencies:
 
 **Memory Dependency Rules:**
+
 - Memory write conflicts with **any** memory read or write (conservative)
 - Memory read conflicts with memory write (but not other reads)
 - Memory reads can execute in parallel (read-read independence)
@@ -47,6 +53,7 @@ Extended `are_independent()` to handle memory dependencies:
 Without full alias analysis, we assume all memory operations may conflict. This prevents incorrect reordering but may miss some optimization opportunities.
 
 **Examples:**
+
 ```python
 MOV [rax], 5    # Write
 MOV rbx, [rcx]  # Read
@@ -62,16 +69,20 @@ MOV rcx, [rdx]  # Read
 Added symbolic memory using z3 Arrays:
 
 **Memory Representation:**
+
 ```python
 memory: Array(BitVecSort(64), BitVecSort(64))
 ```
+
 Maps 64-bit addresses to 64-bit values.
 
 **New Methods:**
+
 - `read_memory(address)` - Load from symbolic memory
 - `write_memory(address, value)` - Store to symbolic memory (uses z3's `Store`)
 
 **Semantics:**
+
 - Memory is treated as a single symbolic array
 - No distinction between stack/heap/globals
 - No alias analysis (conservative approach)
@@ -81,6 +92,7 @@ Maps 64-bit addresses to 64-bit values.
 Enhanced `execute_mov()` to handle memory operations:
 
 **MOV Variants:**
+
 1. **`MOV r, imm/reg`** - Regular register move
 2. **`MOV r, [addr]`** - Load from memory
    - Parse address from memory operand
@@ -92,6 +104,7 @@ Enhanced `execute_mov()` to handle memory operations:
    - Write to symbolic memory array
 
 **Example:**
+
 ```python
 # MOV [rax], rbx - Store rbx to address in rax
 address = state.get_register("rax")
@@ -109,6 +122,7 @@ state.set_register("rcx", value)
 Two new optimization rules:
 
 #### Rule 1: `load_store_same`
+
 ```
 MOV r, [a]      # Load from memory
 MOV [a], r      # Store back to same location
@@ -120,6 +134,7 @@ MOV [a], r      # Store back to same location
 **Precondition:** No intervening memory operations (currently assumed by pattern adjacency).
 
 #### Rule 2: `load_forward`
+
 ```
 MOV r1, [a]     # Load to intermediate register
 MOV r2, r1      # Copy to final destination
@@ -133,7 +148,7 @@ MOV r2, [a]     # Load directly to final destination
 
 ## Integration
 
-All memory rules are exported from [rewrite_rules/tier1_peephole/__init__.py](rewrite_rules/tier1_peephole/__init__.py):
+All memory rules are exported from [rewrite_rules/tier1_peephole/**init**.py](rewrite_rules/tier1_peephole/__init__.py):
 
 ```python
 from rewrite_rules.tier1_peephole import (
@@ -151,6 +166,7 @@ python tests/test_memory_ops.py
 ```
 
 **Test Coverage:**
+
 - ✅ Memory operand flags (`mem_read`, `mem_write`)
 - ✅ Memory operand parsing (`[rax]`, `[rbx+8]`, `[rcx-16]`)
 - ✅ Dependency analysis with memory operations
@@ -161,20 +177,25 @@ python tests/test_memory_ops.py
 ## Examples
 
 ### Example 1: Memory Dependency Detection
+
 ```assembly
 MOV rax, 5
 MOV rbx, [rax]  # Reads rax (as address)
 ```
+
 **Analysis:** Dependent - `rbx` load depends on `rax` being set.
 
 ### Example 2: Conservative Memory Aliasing
+
 ```assembly
 MOV [rax], 10   # Write
 MOV rbx, [rcx]  # Read
 ```
+
 **Analysis:** Dependent - conservative approach assumes addresses may alias.
 
 ### Example 3: Load/Store Elimination
+
 ```assembly
 # Before optimization:
 MOV rax, [rbx]
@@ -185,6 +206,7 @@ MOV [rbx], rax
 ```
 
 ### Example 4: Load Forwarding
+
 ```assembly
 # Before optimization:
 MOV rax, [rbx]
@@ -264,6 +286,7 @@ Potential improvements:
 ## Summary
 
 Memory operations are now fully integrated:
+
 - ✅ Memory reads/writes tracked at instruction level
 - ✅ Dependency analysis handles memory conflicts conservatively
 - ✅ Symbolic execution models memory with z3 Arrays

@@ -171,8 +171,9 @@ class HierarchicalEngine:
         print("\n=== Rule Metrics Summary ===")
         self._print_rule_metrics()
         
-        # Return optimized basic block
-        return BasicBlock(optimized_instructions)
+        # Return optimized basic block (preserve original label if available)
+        label = block.label if hasattr(block, 'label') and block.label else "optimized"
+        return BasicBlock(label, optimized_instructions)
     
     def _print_stats(self) -> None:
         """Print statistics about the rewrite process."""

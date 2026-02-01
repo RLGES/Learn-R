@@ -9,6 +9,10 @@ Mapping rules:
     t = a * b  →  MOV t, a; MUL t, b
     t = 5      →  MOV t, 5
     t = a      →  MOV t, a
+    CMP a, b   →  CMP a, b (comparison)
+    JE label   →  JE label (conditional jump)
+    JMP label  →  JMP label (unconditional jump)
+    L0:        →  Label marker (not an instruction)
 """
 from typing import List
 import re
@@ -20,18 +24,54 @@ class CodeGenerator:
     
     def __init__(self):
         self.instructions: List[Instruction] = []
+        self.labels: List[str] = []  # Track labels encountered
     
     def parse_ir_instruction(self, ir_instr: str) -> List[Instruction]:
         """
         Parse a single IR instruction and generate assembly.
         
         Args:
-            ir_instr: IR instruction string (e.g., "t1 = a + b")
+            ir_instr: IR instruction string (e.g., "t1 = a + b", "JMP L0", "L0:")
         
         Returns:
-            List of assembly Instruction objects
+            List of assembly Instruction objects (may be empty for labels)
         """
         ir_instr = ir_instr.strip()
+        
+        # Check for label (e.g., "L0:", "loop_start:")
+        if ir_instr.endswith(':'):
+            label = ir_instr[:-1]
+            self.labels.append(label)
+            # Labels are not instructions - they mark positions
+            return []
+        
+        # Check for CMP instruction (e.g., "CMP a, b")
+        cmp_pattern = r'CMP\s+(\w+),\s*(\w+)'
+        match = re.match(cmp_pattern, ir_instr, re.IGNORECASE)
+        if match:
+            operand1 = match.group(1)
+            operand2 = match.group(2)
+            # CMP is special: dst is first operand, src is second
+            return [Instruction('CMP', operand1, [operand2])]
+        
+        # Check for unconditional jump (e.g., "JMP label")
+        jmp_pattern = r'JMP\s+(\w+)'
+        match = re.match(jmp_pattern, ir_instr, re.IGNORECASE)
+        if match:
+            label = match.group(1)
+            return [Instruction('JMP', label, [], is_control_flow_instr=True)]
+        
+        # Check for conditional jumps (e.g., "JE label", "JNE label")
+        cond_jmp_pattern = r'(JE|JNE|JZ|JNZ|JL|JG|JLE|JGE)\s+(\w+)'
+        match = re.match(cond_jmp_pattern, ir_instr, re.IGNORECASE)
+        if match:
+            opcode = match.group(1).upper()
+            label = match.group(2)
+            # Conditional jumps read flags but don't write registers
+            flags_read = {'zf'}  # Most conditional jumps read zero flag
+            if opcode in ['JL', 'JG', 'JLE', 'JGE']:
+                flags_read.update({'sf', 'of'})  # Signed comparisons also check sign/overflow
+            return [Instruction(opcode, label, [], flags_read=flags_read, is_control_flow_instr=True)]
         
         # Pattern: dest = operand1 op operand2
         binary_pattern = r'(\w+)\s*=\s*(\w+)\s*([+\-*])\s*(\w+)'

@@ -9,7 +9,7 @@ Pipeline stages:
 5. Display results
 """
 from typing import List
-from asm_ir import Instruction, BasicBlock
+from asm_ir import Instruction, BasicBlock, CFG
 from frontend import parse, lower_to_ir, ir_to_assembly
 from hierarchical_engine import HierarchicalEngine
 from hierarchical_engine.egraph_api import EGraphAPI
@@ -101,6 +101,109 @@ class StubEGraph(EGraphAPI):
         return self.applied_rules
 
 
+def build_cfg_from_assembly(instructions: List[Instruction]) -> CFG:
+    """
+    Build a Control Flow Graph from a list of assembly instructions.
+    
+    Splits instructions into basic blocks at:
+    - Labels (start of new block)
+    - Jump instructions (end of current block)
+    - Instructions following jumps (start of new block)
+    
+    Args:
+        instructions: List of assembly Instruction objects
+    
+    Returns:
+        CFG with basic blocks and edges
+    """
+    cfg = CFG(entry_label="entry")
+    
+    # First pass: identify labels and their positions
+    labels_at_position = {}  # position -> label
+    label_positions = {}     # label -> position
+    
+    # Track positions where labels should be (from jump targets)
+    jump_targets = set()
+    
+    for i, instr in enumerate(instructions):
+        # Check if instruction is a control flow instruction with a target
+        if instr.is_control_flow() and instr.dst:
+            jump_targets.add(instr.dst)
+    
+    # Second pass: create basic blocks
+    current_label = "entry"
+    current_instructions = []
+    block_starts = {0}  # Position 0 always starts a block
+    
+    # Identify block boundaries
+    for i, instr in enumerate(instructions):
+        # Start new block after control flow instruction
+        if i > 0 and instructions[i-1].is_control_flow():
+            block_starts.add(i)
+        
+        # Start new block at jump target (if we can identify it)
+        # For now, we'll handle explicit labels in IR
+    
+    # Build blocks
+    current_block_start = 0
+    current_label = "entry"
+    label_counter = 0
+    
+    for i, instr in enumerate(instructions):
+        current_instructions.append(instr)
+        
+        # End block at control flow instruction
+        if instr.is_control_flow():
+            block = BasicBlock(current_label, current_instructions)
+            cfg.add_block(block)
+            
+            # Connect to successor(s)
+            if instr.opcode == 'JMP':
+                # Unconditional jump
+                if instr.dst in jump_targets:
+                    # Will connect after all blocks created
+                    pass
+            elif instr.opcode in ['JE', 'JNE', 'JZ', 'JNZ', 'JG', 'JL', 'JGE', 'JLE']:
+                # Conditional jump - two successors (fall-through and jump target)
+                pass
+            
+            # Start new block
+            current_instructions = []
+            label_counter += 1
+            current_label = f"block_{label_counter}"
+        
+        # Also end block if next instruction is a target
+        elif i + 1 < len(instructions) and i + 1 in block_starts:
+            block = BasicBlock(current_label, current_instructions)
+            cfg.add_block(block)
+            current_instructions = []
+            label_counter += 1
+            current_label = f"block_{label_counter}"
+    
+    # Add final block if non-empty
+    if current_instructions:
+        block = BasicBlock(current_label, current_instructions)
+        cfg.add_block(block)
+    
+    # Third pass: connect blocks based on control flow
+    # (Simplified: just create sequential flow for now)
+    block_list = list(cfg.blocks.keys())
+    for i in range(len(block_list) - 1):
+        current = block_list[i]
+        next_block = block_list[i + 1]
+        
+        # Check if current block ends with unconditional jump
+        block = cfg.get_block(current)
+        if block.instructions and block.instructions[-1].opcode == 'JMP':
+            # Jump to target (simplified: connect to next for now)
+            pass
+        else:
+            # Fall-through to next block
+            cfg.connect_blocks(current, next_block)
+    
+    return cfg
+
+
 def format_instruction(instr: Instruction) -> str:
     """Format an instruction for display."""
     if instr.srcs:
@@ -117,16 +220,17 @@ def print_instructions(instructions: List[Instruction], title: str = "Instructio
         print(f"  {i:2d}. {format_instruction(instr)}")
 
 
-def run_full_pipeline(source_code: str, verbose: bool = True):
+def run_full_pipeline(source_code: str, verbose: bool = True, use_cfg: bool = False):
     """
     Run the complete compilation and optimization pipeline.
     
     Args:
         source_code: High-level source code string
         verbose: If True, print intermediate results
+        use_cfg: If True, build CFG and optimize per-block
     
     Returns:
-        Tuple of (original_assembly, optimized_assembly)
+        Tuple of (original_assembly, optimized_assembly, cfg)
     """
     if verbose:
         print("=" * 70)
@@ -163,12 +267,24 @@ def run_full_pipeline(source_code: str, verbose: bool = True):
     
     print_instructions(asm_instructions, "Original Assembly")
     
-    # Stage 4: Optimize with rewrite engine
-    if verbose:
-        print("\nStage 4: Optimization (hierarchical rewrite)...")
+    # Stage 4: Build CFG if requested
+    cfg = None
+    if use_cfg and any(instr.is_control_flow() for instr in asm_instructions):
+        if verbose:
+            print("\nStage 4a: Building Control Flow Graph...")
+        cfg = build_cfg_from_assembly(asm_instructions)
+        if verbose:
+            print(f"  - Built CFG with {len(cfg.blocks)} basic blocks")
+            print(f"  - Entry: {cfg.entry_label}")
+            for label, block in cfg.blocks.items():
+                print(f"    {label}: {len(block.instructions)} instructions, successors: {block.successors}")
     
-    # Create basic block
-    basic_block = BasicBlock(asm_instructions)
+    # Stage 5: Optimize with rewrite engine
+    if verbose:
+        if cfg:
+            print("\nStage 5: Optimization (per-block hierarchical rewrite)...")
+        else:
+            print("\nStage 5: Optimization (hierarchical rewrite)...")
     
     # Get optimization rules
     tier1_rules = [
@@ -178,22 +294,50 @@ def run_full_pipeline(source_code: str, verbose: bool = True):
         double_add_rule
     ]
     
-    # Create e-graph API (stub implementation)
-    egraph_api = StubEGraph()
-    egraph_api.block = basic_block  # Give stub access to block
+    if cfg:
+        # Optimize each block separately
+        for label, block in cfg.blocks.items():
+            if verbose:
+                print(f"  Optimizing {label}...")
+            
+            egraph_api = StubEGraph()
+            egraph_api.block = block
+            
+            engine = HierarchicalEngine(
+                egraph_api=egraph_api,
+                rules_by_tier={1: tier1_rules}
+            )
+            
+            optimized_block = engine.run(block)
+            # Update block in place
+            block.instructions = optimized_block.instructions
+        
+        # Collect all optimized instructions from CFG
+        optimized_instructions = []
+        for label in sorted(cfg.blocks.keys()):
+            block = cfg.get_block(label)
+            if block and block.instructions:
+                optimized_instructions.extend(block.instructions)
+        
+        optimized_block = BasicBlock("combined", optimized_instructions)
+    else:
+        # Single block optimization (original behavior)
+        basic_block = BasicBlock("main", asm_instructions)
+        
+        egraph_api = StubEGraph()
+        egraph_api.block = basic_block
+        
+        engine = HierarchicalEngine(
+            egraph_api=egraph_api,
+            rules_by_tier={1: tier1_rules}
+        )
+        
+        if verbose:
+            print(f"  Running engine with {len(tier1_rules)} optimization rules...")
+        
+        optimized_block = engine.run(basic_block)
     
-    # Create and run engine
-    engine = HierarchicalEngine(
-        egraph_api=egraph_api,
-        rules_by_tier={1: tier1_rules}
-    )
-    
-    if verbose:
-        print(f"  Running engine with {len(tier1_rules)} optimization rules...")
-    
-    optimized_block = engine.run(basic_block)
-    
-    # Stage 5: Results
+    # Stage 6: Results
     print_instructions(optimized_block.instructions, "Optimized Assembly")
     
     # Summary
@@ -216,7 +360,7 @@ def run_full_pipeline(source_code: str, verbose: bool = True):
     
     print("=" * 70)
     
-    return asm_instructions, optimized_block.instructions
+    return asm_instructions, optimized_block.instructions, cfg
 
 
 def main():

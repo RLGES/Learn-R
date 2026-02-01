@@ -3,18 +3,26 @@ Simple recursive-descent parser for expression language.
 
 Grammar:
     program   -> statement*
-    statement -> IDENT '=' expr NEWLINE
+    statement -> assignment | if_stmt | while_stmt
+    assignment -> IDENT '=' expr NEWLINE
+    if_stmt    -> 'if' '(' expr ')' '{' statement* '}' ('else' '{' statement* '}')?
+    while_stmt -> 'while' '(' expr ')' '{' statement* '}'
     expr      -> term (('+' | '-') term)*
     term      -> factor (('*') factor)*
     factor    -> NUMBER | IDENT | '(' expr ')'
+    comp      -> expr (('<' | '>' | '<=' | '>=' | '==' | '!=') expr)?
 
 Example input:
     a = 5
-    b = a + 3
-    c = b * 2
+    if (a < 10) {
+        b = a + 3
+    }
+    while (b > 0) {
+        b = b - 1
+    }
 """
 from typing import List, Optional
-from .ast_nodes import Expr, IntLiteral, Variable, BinOp, Assign, Block
+from .ast_nodes import Expr, IntLiteral, Variable, BinOp, Assign, Block, If, While
 
 
 class Token:
@@ -60,12 +68,19 @@ class Lexer:
         return result
     
     def read_identifier(self) -> str:
-        """Read an identifier (variable name)."""
+        """Read an identifier (variable name or keyword)."""
         result = ''
         while self.current_char is not None and (self.current_char.isalnum() or self.current_char == '_'):
             result += self.current_char
             self.advance()
         return result
+    
+    def peek(self, offset: int = 1) -> Optional[str]:
+        """Look ahead at character without consuming."""
+        pos = self.pos + offset
+        if pos < len(self.text):
+            return self.text[pos]
+        return None
     
     def get_next_token(self) -> Optional[Token]:
         """Get the next token from input."""
@@ -82,11 +97,51 @@ class Lexer:
                 return Token('NUMBER', self.read_number())
             
             if self.current_char.isalpha() or self.current_char == '_':
-                return Token('IDENT', self.read_identifier())
+                ident = self.read_identifier()
+                # Check for keywords
+                if ident == 'if':
+                    return Token('IF', ident)
+                elif ident == 'else':
+                    return Token('ELSE', ident)
+                elif ident == 'while':
+                    return Token('WHILE', ident)
+                else:
+                    return Token('IDENT', ident)
             
             if self.current_char == '=':
+                # Check for ==
+                if self.peek() == '=':
+                    self.advance()
+                    self.advance()
+                    return Token('EQEQ', '==')
                 self.advance()
                 return Token('EQUALS', '=')
+            
+            if self.current_char == '!':
+                # Check for !=
+                if self.peek() == '=':
+                    self.advance()
+                    self.advance()
+                    return Token('NEQ', '!=')
+                self.error("Expected '=' after '!'")
+            
+            if self.current_char == '<':
+                # Check for <=
+                if self.peek() == '=':
+                    self.advance()
+                    self.advance()
+                    return Token('LTE', '<=')
+                self.advance()
+                return Token('LT', '<')
+            
+            if self.current_char == '>':
+                # Check for >=
+                if self.peek() == '=':
+                    self.advance()
+                    self.advance()
+                    return Token('GTE', '>=')
+                self.advance()
+                return Token('GT', '>')
             
             if self.current_char == '+':
                 self.advance()
@@ -107,6 +162,14 @@ class Lexer:
             if self.current_char == ')':
                 self.advance()
                 return Token('RPAREN', ')')
+            
+            if self.current_char == '{':
+                self.advance()
+                return Token('LBRACE', '{')
+            
+            if self.current_char == '}':
+                self.advance()
+                return Token('RBRACE', '}')
             
             self.error(f"Unknown character: {self.current_char!r}")
         
@@ -169,9 +232,11 @@ class Parser:
     def expr(self) -> Expr:
         """
         Parse an expression: term (('+' | '-') term)*
+        or comparison: expr (('<' | '>' | '<=', '>=' | '==' | '!=') expr)?
         """
         node = self.term()
         
+        # Arithmetic operators
         while self.current_token.type in ('PLUS', 'MINUS'):
             op = self.current_token.value
             if self.current_token.type == 'PLUS':
@@ -180,11 +245,39 @@ class Parser:
                 self.eat('MINUS')
             node = BinOp(op, node, self.term())
         
+        # Comparison operators
+        if self.current_token.type in ('LT', 'GT', 'LTE', 'GTE', 'EQEQ', 'NEQ'):
+            op = self.current_token.value
+            self.eat(self.current_token.type)
+            right = self.term()
+            # Continue with arithmetic on right side
+            while self.current_token.type in ('PLUS', 'MINUS'):
+                op2 = self.current_token.value
+                if self.current_token.type == 'PLUS':
+                    self.eat('PLUS')
+                else:
+                    self.eat('MINUS')
+                right = BinOp(op2, right, self.term())
+            node = BinOp(op, node, right)
+        
         return node
     
-    def statement(self) -> Assign:
+    def statement(self):
         """
-        Parse a statement: IDENT '=' expr
+        Parse a statement: assignment | if_stmt | while_stmt
+        """
+        if self.current_token.type == 'IF':
+            return self.if_statement()
+        elif self.current_token.type == 'WHILE':
+            return self.while_statement()
+        elif self.current_token.type == 'IDENT':
+            return self.assignment()
+        else:
+            self.error("Expected statement")
+    
+    def assignment(self) -> Assign:
+        """
+        Parse an assignment: IDENT '=' expr
         """
         if self.current_token.type != 'IDENT':
             self.error("Expected variable name")
@@ -195,6 +288,71 @@ class Parser:
         expr = self.expr()
         
         return Assign(var_name, expr)
+    
+    def if_statement(self) -> If:
+        """
+        Parse if statement: 'if' '(' expr ')' '{' statement* '}' ('else' '{' statement* '}')?
+        """
+        self.eat('IF')
+        self.eat('LPAREN')
+        condition = self.expr()
+        self.eat('RPAREN')
+        self.eat('LBRACE')
+        
+        # Parse then block
+        then_statements = []
+        while self.current_token.type != 'RBRACE':
+            if self.current_token.type == 'NEWLINE':
+                self.eat('NEWLINE')
+                continue
+            then_statements.append(self.statement())
+            if self.current_token.type == 'NEWLINE':
+                self.eat('NEWLINE')
+        self.eat('RBRACE')
+        
+        then_block = Block(then_statements)
+        
+        # Optional else clause
+        else_block = None
+        if self.current_token.type == 'ELSE':
+            self.eat('ELSE')
+            self.eat('LBRACE')
+            else_statements = []
+            while self.current_token.type != 'RBRACE':
+                if self.current_token.type == 'NEWLINE':
+                    self.eat('NEWLINE')
+                    continue
+                else_statements.append(self.statement())
+                if self.current_token.type == 'NEWLINE':
+                    self.eat('NEWLINE')
+            self.eat('RBRACE')
+            else_block = Block(else_statements)
+        
+        return If(condition, then_block, else_block)
+    
+    def while_statement(self) -> While:
+        """
+        Parse while statement: 'while' '(' expr ')' '{' statement* '}'
+        """
+        self.eat('WHILE')
+        self.eat('LPAREN')
+        condition = self.expr()
+        self.eat('RPAREN')
+        self.eat('LBRACE')
+        
+        # Parse body
+        body_statements = []
+        while self.current_token.type != 'RBRACE':
+            if self.current_token.type == 'NEWLINE':
+                self.eat('NEWLINE')
+                continue
+            body_statements.append(self.statement())
+            if self.current_token.type == 'NEWLINE':
+                self.eat('NEWLINE')
+        self.eat('RBRACE')
+        
+        body = Block(body_statements)
+        return While(condition, body)
     
     def program(self) -> Block:
         """
