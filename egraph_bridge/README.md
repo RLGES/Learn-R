@@ -5,6 +5,7 @@ Connects SSA-form intermediate representation with equality saturation via e-gra
 ## Overview
 
 The e-graph bridge enables optimization of SSA code by:
+
 1. Converting SSA instructions to expression DAGs
 2. Inserting expressions into an e-graph for equality saturation
 3. Extracting optimized expressions with algebraic simplifications
@@ -19,22 +20,26 @@ SSA Instructions → Expression DAG → E-Graph → Optimized Expressions → SS
 ### Components
 
 **`ssa_to_expr.py`**: SSA → Expression DAG
+
 - `ExprNode`: Expression tree representation (operations, constants, variables)
 - `ssa_block_to_exprs()`: Convert SSA basic block to expression map
-- `simplify_expression()`: Algebraic simplification (constant folding, identities)
+- `simplify_expression()`: Algebraic simplification (constant folding, identities, **phi nodes**)
 
 **`expr_to_egraph.py`**: Expression DAG → E-Graph
+
 - `insert_expr_into_egraph()`: Recursively insert expression tree
 - `insert_exprs_into_egraph()`: Batch insert multiple expressions
 - `extract_expr_from_egraph()`: Extract best representation from e-class
 
 **`egraph_to_ssa.py`**: E-Graph → SSA Instructions
+
 - `extract_optimized_exprs()`: Get optimized expressions from e-graph
 - `exprs_to_ssa_instructions()`: Convert expressions back to SSA
 - `linearize_expression()`: Handle complex expressions with temporaries
 
 **`simple_egraph.py`**: E-Graph Data Structures
-- `ENode`: Operation with child e-classes
+
+- `ENode`: Operation with child e-classes (supports binary, unary, and **n-ary phi** nodes)
 - `EClass`: Equivalence class of expressions
 - `EGraph`: Graph maintaining equivalences with union-find
 
@@ -107,12 +112,14 @@ optimized = optimize_ssa_block(
 ### 1. Algebraic Identities
 
 **Addition Identity:**
+
 ```
 x + 0 → x
 0 + x → x
 ```
 
 **Multiplication Identity:**
+
 ```
 x * 1 → x
 1 * x → x
@@ -121,11 +128,13 @@ x * 0 → 0
 ```
 
 **Subtraction:**
+
 ```
 x - x → 0
 ```
 
 **Bitwise:**
+
 ```
 x & x → x
 x | x → x
@@ -161,9 +170,51 @@ ADD y, a, b    # Same expression
 MUL x, y, 2 → SHL x, y, 1    # Cheaper operation
 ```
 
+### 5. PHI Node Simplification ⭐ NEW
+
+**Identical Inputs:**
+
+```
+PHI x, [a, a, a] → a    # All inputs same
+```
+
+**Constant Propagation Through PHI:**
+
+```
+# Control flow:
+if (...) x = 5
+else     x = 5
+# After merge:
+PHI x, [5, 5] → 5       # Simplified to constant
+```
+
+**Nested PHI Nodes:**
+
+```
+PHI x, [y, y]        → y
+PHI z, [x, w]        → PHI z, [y, w]    # Propagate simplification
+```
+
+**Example: Loop Invariant PHI:**
+
+```python
+# Original:
+MOV x_0, 10
+MOV x_1, 10
+PHI x_2, [x_0, x_1]    # Both branches assign 10
+ADD y_0, x_2, 5
+
+# Optimized:
+MOV x_0, 10
+MOV x_1, 10
+MOV x_2, 10            # PHI simplified
+MOV y_0, 15            # Constant folded
+```
+
 ## Example: Complete Optimization
 
 **Original SSA:**
+
 ```
 MOV x_0, 1
 ADD y_0, x_0, 0    # x + 0
@@ -173,6 +224,7 @@ MUL a_0, w_0, 5    # 0 * 5
 ```
 
 **Expression DAG:**
+
 ```
 x_0 = Const(1)
 y_0 = add(Const(1), Const(0))
@@ -182,6 +234,7 @@ a_0 = mul(sub(...), Const(5))
 ```
 
 **After Simplification:**
+
 ```
 x_0 = Const(1)
 y_0 = Const(1)    # 1 + 0 → 1
@@ -191,6 +244,7 @@ a_0 = Const(0)    # 0 * 5 → 0
 ```
 
 **Optimized SSA:**
+
 ```
 MOV x_0, 1
 MOV y_0, 1
@@ -200,6 +254,83 @@ MOV a_0, 0
 ```
 
 **Result:** All unnecessary operations eliminated!
+
+## Example: PHI Node Optimization ⭐ NEW
+
+**Original SSA (Control Flow Merge):**
+
+```
+# if (condition):
+#     x = 42
+# else:
+#     x = 42
+# y = x * 2
+
+MOV x_0, 42        # then branch
+MOV x_1, 42        # else branch
+PHI x_2, x_0, x_1  # merge point
+MUL y_0, x_2, 2    # use merged value
+```
+
+**Expression DAG:**
+
+```
+x_0 = Const(42)
+x_1 = Const(42)
+x_2 = phi(Const(42), Const(42))
+y_0 = mul(phi(Const(42), Const(42)), Const(2))
+```
+
+**After Simplification:**
+
+```
+x_0 = Const(42)
+x_1 = Const(42)
+x_2 = Const(42)    # PHI(42, 42) → 42
+y_0 = Const(84)    # 42 * 2 → 84 (constant folding)
+```
+
+**Optimized SSA:**
+
+```
+MOV x_0, 42
+MOV x_1, 42
+MOV x_2, 42
+MOV y_0, 84
+```
+
+**Complex Example: Nested Control Flow**
+
+```
+# Nested if:
+#   if (outer):
+#       if (inner):
+#           x = 1
+#       else:
+#           x = 1
+#       # x = 1 here
+#   else:
+#       x = 2
+#   y = x * 10
+
+MOV x_0, 1                  # inner then
+MOV x_1, 1                  # inner else
+PHI x_2, x_0, x_1          # inner merge → simplifies to 1
+MOV x_3, 2                  # outer else
+PHI x_4, x_2, x_3          # outer merge → PHI(1, 2)
+MUL y_0, x_4, 10
+
+# After optimization:
+MOV x_0, 1
+MOV x_1, 1
+MOV x_2, 1                  # Inner PHI(1, 1) simplified
+MOV x_3, 2
+PHI x_4, 1, 2              # Outer PHI preserved (different values)
+PHI _t0, 1, 2
+MUL y_0, _t0, 10
+```
+
+**Result:** Inner PHI simplified, outer PHI correctly preserved!
 
 ## Integration with Analysis Framework
 
@@ -225,6 +356,7 @@ optimized_cfg = optimize_cfg(
 ## Performance
 
 **Optimization Time Complexity:**
+
 - SSA → Expression: O(n) where n = instructions
 - E-graph insertion: O(n) with hash-consing
 - Equality saturation: O(iterations × rules × e-classes)
@@ -232,6 +364,7 @@ optimized_cfg = optimize_cfg(
 - Expression → SSA: O(n)
 
 **Space Complexity:**
+
 - Expression DAG: O(n)
 - E-graph: O(n) to O(n²) depending on equivalences discovered
 - Optimized SSA: O(n)
@@ -239,22 +372,36 @@ optimized_cfg = optimize_cfg(
 ## Testing
 
 Run comprehensive tests:
+
 ```bash
+# Core e-graph bridge tests
 python examples/test_egraph_bridge.py
+
+# PHI node support tests ⭐ NEW
+python examples/test_phi_nodes.py
 ```
 
-Run demo:
+Run demonstrations:
+
 ```bash
+# Basic pipeline demo
 python pipeline/ssa_egraph_pipeline.py
+
+# PHI optimization demo ⭐ NEW
+python examples/demo_phi_optimization.py
 ```
 
 Tests cover:
+
 - ✅ SSA to expression conversion
 - ✅ Expression to e-graph insertion
 - ✅ Algebraic simplification
 - ✅ Constant folding
 - ✅ Common subexpression detection
 - ✅ Complete pipeline
+- ✅ **PHI node conversion and simplification** ⭐
+- ✅ **PHI constant propagation** ⭐
+- ✅ **Nested PHI nodes** ⭐
 
 ## API Reference
 
@@ -266,7 +413,7 @@ class ExprNode:
     op: str                    # Operation or "const"/"var"
     children: List[ExprNode]   # Child expressions
     value: Optional[Any]       # For constants/variables
-    
+
     def is_constant() -> bool
     def is_variable() -> bool
     def is_operation() -> bool
@@ -290,21 +437,23 @@ extract_optimized_exprs(eclass_map: Dict, egraph: EGraph) -> Dict[str, ExprNode]
 exprs_to_ssa_instructions(expr_map: Dict) -> List[Instruction]
 
 # Pipeline
-optimize_ssa_block(block: BasicBlock, max_iterations: int = 10, 
+optimize_ssa_block(block: BasicBlock, max_iterations: int = 10,
                    verbose: bool = True) -> BasicBlock
-optimize_cfg(cfg: CFG, convert_to_ssa: bool = True, 
+optimize_cfg(cfg: CFG, convert_to_ssa: bool = True,
             max_iterations: int = 10, verbose: bool = True) -> CFG
 ```
 
 ## Limitations & Future Work
 
 **Current Limitations:**
+
 - Simple pattern matching (not full e-matching)
 - Limited rewrite rules (mostly algebraic identities)
 - No loop-aware optimizations
 - Basic cost model for extraction
 
 **Future Enhancements:**
+
 - [ ] Full e-matching with pattern variables
 - [ ] More rewrite rules (distributivity, factorization, etc.)
 - [ ] Conditional constant propagation

@@ -13,7 +13,13 @@ class ENode:
     """
     E-node: represents an operation with child e-classes.
     
+    Supports all operators including:
+    - Binary ops: add, sub, mul, and, or, xor, etc.
+    - Unary ops: not, neg, etc.
+    - N-ary ops: phi (for SSA phi nodes with multiple inputs)
+    
     Example: add(e1, e2) where e1 and e2 are e-class IDs
+    Example: phi(e1, e2, e3) for SSA phi node merging 3 values
     """
     op: str
     children: List[Any] = field(default_factory=list)  # Can be int (eclass IDs) or values

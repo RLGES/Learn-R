@@ -111,31 +111,38 @@ capstone/
 Comprehensive instruction set with multiple operation categories:
 
 **Data Movement:**
+
 - `MOV` - Move data between registers/memory
 
 **Arithmetic:**
+
 - `ADD`, `SUB`, `MUL`, `DIV`, `MOD` - Basic arithmetic
 - `INC`, `DEC` - Increment/decrement
 
 **Bitwise:**
+
 - `AND`, `OR`, `XOR`, `NOT` - Logical operations
 - `SHL`, `SHR`, `SAR` - Shift operations
 
 **Memory:**
+
 - `LOAD`, `STORE` - Memory access
 - `PUSH`, `POP` - Stack operations
 
 **Control Flow:**
+
 - `JMP` - Unconditional jump
 - `JE`, `JNE`, `JG`, `JL`, `JGE`, `JLE` - Conditional jumps
 - `CMP` - Compare
 - `CALL`, `RET` - Function calls
 
 **System:**
+
 - `HALT` - Stop execution
 - `SYSCALL` - System call
 
 Each instruction tracks:
+
 - Opcode
 - Destination register
 - Source operands
@@ -202,6 +209,7 @@ python pipeline/full_pipeline.py
 ```
 
 Demonstrates the complete compilation pipeline:
+
 - High-level language parsing
 - AST construction
 - IR lowering
@@ -217,10 +225,11 @@ python pipeline/ssa_egraph_pipeline.py
 ```
 
 Demonstrates state-of-the-art optimization:
+
 - SSA transformation
 - Expression DAG construction
 - E-graph insertion
-- Algebraic simplification (x+0→x, x*1→x, x-x→0)
+- Algebraic simplification (x+0→x, x\*1→x, x-x→0)
 - Constant folding
 - Optimized SSA reconstruction
 
@@ -295,6 +304,7 @@ python pipeline/main.py
 ## Documentation
 
 ### Core System
+
 - **[Architecture](docs/architecture.md)** - System overview and design principles
 - **[Tiers](docs/tiers.md)** - Detailed explanation of the tier system
 - **[Learned Rules](docs/learned_rules.md)** - LLM-based rule generation pipeline
@@ -303,6 +313,7 @@ python pipeline/main.py
 - **[Verification](docs/verification.md)** - SMT-based rule verification
 
 ### New Features ⭐
+
 - **[Control Flow](docs/CONTROL_FLOW.md)** - If/while statements and CFG construction
 - **[Memory Operations](docs/MEMORY_OPERATIONS.md)** - Load/store and stack operations
 - **[SSA Analysis](analysis/README.md)** - SSA transformation, dataflow, and DCE
@@ -311,6 +322,7 @@ python pipeline/main.py
 ## Example Output
 
 ### Hierarchical Rewriting
+
 ```
 === Processing Tier 1 ===
   [Tier 1, Iter 0] Applying rule 'mov_chain_elimination' at index 0
@@ -330,6 +342,7 @@ Improvement: 3 instructions
 ```
 
 ### SSA E-Graph Optimization ⭐ NEW
+
 ```
 Original SSA:
   MOV x_0, 1
@@ -347,6 +360,7 @@ Optimized SSA (after algebraic simplification):
 ```
 
 ### Dead Code Elimination ⭐ NEW
+
 ```
 Before DCE (5 instructions):
   MOV x, 1
@@ -365,6 +379,7 @@ Reduction: 3 instructions (60%)
 ## Future Extensions
 
 ### Planned Features
+
 - Real e-graph implementation (replacing stub)
 - Advanced pruning strategies
 - Distributed rule learning
@@ -372,6 +387,7 @@ Reduction: 3 instructions (60%)
 - More structural optimizations
 
 ### Implemented ✅
+
 - ✅ SSA transformation with phi nodes
 - ✅ Dataflow analysis (reaching definitions, liveness)
 - ✅ Dead code elimination

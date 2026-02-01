@@ -87,6 +87,12 @@ def expr_to_instruction(var_name: str, expr: ExprNode) -> Instruction:
         opcode = expr.op.upper()
         return Instruction(opcode, var_name, [operand_str])
     
+    # Phi operations - n-ary merge
+    if expr.op == "phi" and len(expr.children) > 0:
+        # PHI instruction with multiple sources
+        phi_srcs = [get_operand_string(child) for child in expr.children]
+        return Instruction("PHI", var_name, phi_srcs)
+    
     # Default: MOV
     return Instruction("MOV", var_name, ["0"])
 
@@ -146,6 +152,12 @@ def linearize_expression(expr: ExprNode, var_name: str, temp_counter: List[int])
     
     # Simple cases: constant or variable
     if expr.is_constant() or expr.is_variable():
+        instructions.append(expr_to_instruction(var_name, expr))
+        return instructions
+    
+    # Phi nodes are special - convert directly without linearizing children
+    # Phi children must remain as simple operands (vars/constants)
+    if expr.op == "phi":
         instructions.append(expr_to_instruction(var_name, expr))
         return instructions
     

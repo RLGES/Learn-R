@@ -148,6 +148,20 @@ def instruction_to_expr(instr: Instruction, expr_map: Dict[str, ExprNode]) -> Op
         # Return the expression for the source
         return expr_map.get(instr.srcs[0], parse_operand(instr.srcs[0]))
     
+    # Phi nodes - merge values from multiple predecessors
+    elif instr.opcode == 'PHI':
+        # PHI node has multiple sources from different predecessors
+        # Format: PHI dst, [src1, src2, ...]
+        if len(instr.srcs) == 0:
+            return None
+        
+        # Get expressions for all phi inputs
+        phi_children = []
+        for src in instr.srcs:
+            phi_children.append(expr_map.get(src, parse_operand(src)))
+        
+        return ExprNode(op="phi", children=phi_children)
+    
     # Comparison operations
     elif instr.opcode == 'CMP':
         # CMP doesn't produce a value we can track, skip it
@@ -310,6 +324,13 @@ def simplify_expression(expr: ExprNode) -> ExprNode:
             
             if result is not None:
                 return ExprNode(op="const", value=result)
+    
+    # Phi simplification: if all inputs are identical, replace with that input
+    if expr.op == "phi" and len(expr.children) > 0:
+        # Check if all children are structurally equal
+        first_child = expr.children[0]
+        if all(child == first_child for child in expr.children):
+            return first_child
     
     # Identity operations
     if expr.op == "add" and len(expr.children) == 2:
