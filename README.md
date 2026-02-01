@@ -15,10 +15,16 @@ This system represents assembly instructions as structured objects, applies rewr
 - **Rule persistence**: Rules and their effectiveness saved to disk
 - **Extraction feedback**: Optimization outcomes update rule priorities
 - **Automatic pruning**: Low-performing rules removed automatically
-- **Rule metrics**: Per-rule performance tracking and analytics ⭐ NEW
-- **Smart sampling**: Intelligent window selection for LLM ⭐ NEW
-- **Rule cooldown**: Failing rules temporarily disabled ⭐ NEW
-- **SMT verification**: Formal verification of learned rules ⭐ NEW
+- **Rule metrics**: Per-rule performance tracking and analytics
+- **Smart sampling**: Intelligent window selection for LLM
+- **Rule cooldown**: Failing rules temporarily disabled
+- **SMT verification**: Formal verification of learned rules with z3
+- **SSA transformation**: Complete Static Single Assignment conversion ⭐ NEW
+- **Dataflow analysis**: Reaching definitions and liveness analysis ⭐ NEW
+- **Dead code elimination**: Remove unused instructions ⭐ NEW
+- **E-graph bridge**: SSA to e-graph optimization pipeline ⭐ NEW
+- **Frontend compiler**: High-level language → ASM IR compilation ⭐ NEW
+- **Control flow**: If/while statements and CFG construction ⭐ NEW
 - **Modular design**: Clean separation of concerns across modules
 - **No external dependencies**: Uses only Python standard library (z3-solver optional for verification)
 
@@ -27,8 +33,23 @@ This system represents assembly instructions as structured objects, applies rewr
 ```
 capstone/
 ├── asm_ir/                      # Assembly intermediate representation
-│   ├── instruction.py           # Instruction dataclass
-│   └── basicblock.py            # BasicBlock class
+│   ├── instruction.py           # Instruction dataclass with SSA support
+│   ├── basicblock.py            # BasicBlock class
+│   └── cfg.py                   # Control Flow Graph ⭐ NEW
+├── frontend/                    # High-level language frontend ⭐ NEW
+│   ├── parser.py                # Lexer and parser
+│   ├── ast_nodes.py             # Abstract syntax tree nodes
+│   ├── ir_lowering.py           # AST → IR lowering
+│   └── asm_codegen.py           # IR → assembly code generation
+├── analysis/                    # Compiler analysis passes ⭐ NEW
+│   ├── ssa.py                   # SSA transformation with phi nodes
+│   ├── dataflow.py              # Reaching definitions & liveness
+│   └── dce.py                   # Dead code elimination
+├── egraph_bridge/               # SSA to e-graph optimization ⭐ NEW
+│   ├── ssa_to_expr.py           # SSA → expression DAG
+│   ├── expr_to_egraph.py        # Expression → e-graph insertion
+│   ├── egraph_to_ssa.py         # E-graph → optimized SSA
+│   └── simple_egraph.py         # E-graph data structures
 ├── rewrite_rules/               # Rewrite rule definitions
 │   ├── rule_base.py             # Base classes (InstructionPattern, RewriteRule)
 │   ├── tier0_normalization/     # Tier 0: Cleanup/canonicalization
@@ -44,49 +65,82 @@ capstone/
 │   ├── llm_rule_generator.py    # LLM-based rule generation
 │   ├── rule_parser.py           # Parse LLM output to rules
 │   ├── rule_filter.py           # Filter invalid rules
-│   ├── rule_memory.py           # Track effectiveness & pruning + cooldown ⭐
+│   ├── rule_memory.py           # Track effectiveness & pruning + cooldown
 │   ├── rule_storage.py          # Persist rules to disk (JSON)
-│   ├── window_sampler.py        # Smart window sampling ⭐ NEW
+│   ├── window_sampler.py        # Smart window sampling
 │   └── learned_rule_manager.py  # Orchestrate full pipeline
-├── evaluation/                  # Evaluation and metrics ⭐ NEW
+├── evaluation/                  # Evaluation and metrics
 │   └── rule_metrics.py          # Per-rule performance tracking
-├── verification/                # SMT-based verification ⭐ NEW
+├── verification/                # SMT-based verification
 │   ├── symbolic_state.py        # Symbolic machine state
 │   ├── symbolic_executor.py     # Symbolic instruction execution
 │   ├── equivalence_checker.py   # SMT equivalence checking
 │   └── rule_verifier.py         # Verify learned rules
+├── pipeline/                    # Complete optimization pipelines ⭐ NEW
+│   ├── main.py                  # Main hierarchical pipeline
+│   ├── full_pipeline.py         # Frontend + optimization + verification
+│   └── ssa_egraph_pipeline.py   # SSA e-graph optimization
 ├── docs/                        # Documentation
 │   ├── architecture.md          # System architecture
 │   ├── tiers.md                 # Tier system details
 │   ├── learned_rules.md         # Learned rules overview
 │   ├── persistence_feedback.md  # Persistence & feedback system
-│   └── enhancements.md          # Metrics, sampling, cooldown ⭐ NEW
+│   ├── enhancements.md          # Metrics, sampling, cooldown
+│   ├── verification.md          # SMT verification guide
+│   ├── CONTROL_FLOW.md          # Control flow documentation ⭐ NEW
+│   └── MEMORY_OPERATIONS.md     # Memory operations guide ⭐ NEW
 ├── examples/                    # Demonstrations
 │   ├── demo_tier0.py            # Normalization demo
 │   ├── demo_tier1.py            # Peephole rules demo
 │   ├── demo_learned_rules.py    # Learned rules demo
 │   ├── demo_persistence_feedback.py  # Persistence & feedback demo
-│   └── demo_enhancements.py     # New enhancements demo ⭐ NEW
-└── pipeline/                    # Driver scripts
-    └── main.py                  # Main pipeline demonstration
+│   ├── demo_enhancements.py     # New enhancements demo
+│   ├── demo_frontend.py         # Frontend compilation demo ⭐ NEW
+│   ├── demo_analysis.py         # SSA/dataflow/DCE demo ⭐ NEW
+│   ├── test_analysis.py         # Analysis tests ⭐ NEW
+│   ├── test_egraph_bridge.py    # E-graph bridge tests ⭐ NEW
+│   └── test_verification_with_z3.py  # Full verification test
+└── tests/                       # Test suites ⭐ NEW
+    ├── test_bitwise_opcodes.py  # Bitwise operation tests
+    ├── test_memory_ops.py       # Memory operation tests
+    └── test_control_flow.py     # Control flow tests
 ```
 
 ## Supported Instructions
 
-Current minimal instruction set:
+Comprehensive instruction set with multiple operation categories:
 
-- `MOV` - Move data between registers
-- `ADD` - Addition
-- `SUB` - Subtraction
-- `MUL` - Multiplication
+**Data Movement:**
+- `MOV` - Move data between registers/memory
+
+**Arithmetic:**
+- `ADD`, `SUB`, `MUL`, `DIV`, `MOD` - Basic arithmetic
+- `INC`, `DEC` - Increment/decrement
+
+**Bitwise:**
+- `AND`, `OR`, `XOR`, `NOT` - Logical operations
+- `SHL`, `SHR`, `SAR` - Shift operations
+
+**Memory:**
+- `LOAD`, `STORE` - Memory access
+- `PUSH`, `POP` - Stack operations
+
+**Control Flow:**
+- `JMP` - Unconditional jump
+- `JE`, `JNE`, `JG`, `JL`, `JGE`, `JLE` - Conditional jumps
 - `CMP` - Compare
+- `CALL`, `RET` - Function calls
+
+**System:**
+- `HALT` - Stop execution
+- `SYSCALL` - System call
 
 Each instruction tracks:
-
 - Opcode
 - Destination register
 - Source operands
 - Flags read/written
+- SSA version information (optional)
 
 ## Rewrite Rules
 
@@ -141,6 +195,43 @@ See [docs/persistence_feedback.md](docs/persistence_feedback.md) for complete de
 
 ## Usage
 
+### Run Complete Frontend Pipeline ⭐ NEW
+
+```bash
+python pipeline/full_pipeline.py
+```
+
+Demonstrates the complete compilation pipeline:
+- High-level language parsing
+- AST construction
+- IR lowering
+- Control flow (if/while statements)
+- Assembly code generation
+- Optimization
+- Verification
+
+### Run SSA E-Graph Optimization ⭐ NEW
+
+```bash
+python pipeline/ssa_egraph_pipeline.py
+```
+
+Demonstrates state-of-the-art optimization:
+- SSA transformation
+- Expression DAG construction
+- E-graph insertion
+- Algebraic simplification (x+0→x, x*1→x, x-x→0)
+- Constant folding
+- Optimized SSA reconstruction
+
+### Run Analysis Demos ⭐ NEW
+
+```bash
+python examples/demo_analysis.py      # SSA, dataflow, DCE demo
+python examples/test_analysis.py      # Analysis test suite (6 tests)
+python examples/test_egraph_bridge.py # E-graph bridge tests (6 tests)
+```
+
 ### Run Main Pipeline
 
 ```bash
@@ -178,11 +269,20 @@ This demonstrates:
 ### Run Other Demos
 
 ```bash
+# Frontend and compilation
+python examples/demo_frontend.py           # High-level language compilation ⭐ NEW
+
+# Optimization tiers
 python examples/demo_tier0.py              # Normalization
 python examples/demo_tier1.py              # Peephole rules
 python examples/demo_learned_rules.py      # Learned rules system
-python examples/demo_verification.py       # SMT verification ⭐ NEW
+
+# Verification
+python examples/demo_verification.py       # SMT verification
 python examples/test_verification_with_z3.py  # Full verification test (installs z3)
+
+# Control flow
+python demos/control_flow_demo.py          # If/while statements demo ⭐ NEW
 ```
 
 ### PowerShell Environment Setup
@@ -194,15 +294,23 @@ python pipeline/main.py
 
 ## Documentation
 
+### Core System
 - **[Architecture](docs/architecture.md)** - System overview and design principles
 - **[Tiers](docs/tiers.md)** - Detailed explanation of the tier system
 - **[Learned Rules](docs/learned_rules.md)** - LLM-based rule generation pipeline
 - **[Persistence & Feedback](docs/persistence_feedback.md)** - Complete guide to the learning system
-- **[Enhancements](docs/enhancements.md)** ⭐ - Metrics, sampling, and cooldown guide
-- **[Verification](docs/verification.md)** ⭐ NEW - SMT-based rule verification
+- **[Enhancements](docs/enhancements.md)** - Metrics, sampling, and cooldown guide
+- **[Verification](docs/verification.md)** - SMT-based rule verification
+
+### New Features ⭐
+- **[Control Flow](docs/CONTROL_FLOW.md)** - If/while statements and CFG construction
+- **[Memory Operations](docs/MEMORY_OPERATIONS.md)** - Load/store and stack operations
+- **[SSA Analysis](analysis/README.md)** - SSA transformation, dataflow, and DCE
+- **[E-Graph Bridge](egraph_bridge/README.md)** - SSA to e-graph optimization pipeline
 
 ## Example Output
 
+### Hierarchical Rewriting
 ```
 === Processing Tier 1 ===
   [Tier 1, Iter 0] Applying rule 'mov_chain_elimination' at index 0
@@ -221,13 +329,56 @@ Improvement: 3 instructions
   Recording success for rule: double_add_folding
 ```
 
+### SSA E-Graph Optimization ⭐ NEW
+```
+Original SSA:
+  MOV x_0, 1
+  ADD y_0, x_0, 0    # x + 0
+  MUL z_0, y_0, 1    # y * 1
+  SUB w_0, z_0, z_0  # z - z
+  MUL a_0, w_0, 5    # 0 * 5
+
+Optimized SSA (after algebraic simplification):
+  MOV x_0, 1
+  MOV y_0, 1         # 1 + 0 → 1
+  MOV z_0, 1         # 1 * 1 → 1
+  MOV w_0, 0         # 1 - 1 → 0
+  MOV a_0, 0         # 0 * 5 → 0
+```
+
+### Dead Code Elimination ⭐ NEW
+```
+Before DCE (5 instructions):
+  MOV x, 1
+  MOV y, 2           # Dead - never used
+  ADD z, x, 1
+  MUL w, z, 2        # Dead - never used
+  ADD a, z, 3
+
+After DCE (2 instructions):
+  MOV x, 1
+  ADD z, x, 1
+
+Reduction: 3 instructions (60%)
+```
+
 ## Future Extensions
 
-- Tier 0: Additional normalization patterns
-- Memory operations (load/store)
-- Branch instructions and control flow
+### Planned Features
 - Real e-graph implementation (replacing stub)
-- More structural optimizations
-- Multi-target support (x86, ARM, etc.)
 - Advanced pruning strategies
 - Distributed rule learning
+- Multi-target support (x86, ARM, RISC-V)
+- More structural optimizations
+
+### Implemented ✅
+- ✅ SSA transformation with phi nodes
+- ✅ Dataflow analysis (reaching definitions, liveness)
+- ✅ Dead code elimination
+- ✅ E-graph bridge for algebraic optimization
+- ✅ Frontend compiler (high-level language → assembly)
+- ✅ Control flow (if/while, CFG)
+- ✅ Memory operations (load/store, stack)
+- ✅ Bitwise operations (and/or/xor/not/shl/shr)
+- ✅ SMT verification with z3
+- ✅ Complete test suites (30+ tests)
