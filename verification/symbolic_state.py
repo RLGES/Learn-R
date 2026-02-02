@@ -90,19 +90,23 @@ class SymbolicState:
         """
         Get register by name (case-insensitive).
         
+        If the register doesn't exist, creates it dynamically.
+        This allows handling of normalized memory addresses like 'mem_rbp_4'.
+        
         Args:
-            name: Register name
+            name: Register name or normalized variable name
         
         Returns:
             BitVecRef for the register
-        
-        Raises:
-            KeyError: If register not found
         """
         name_lower = name.lower()
         if name_lower in self.registers:
             return self.registers[name_lower]
-        raise KeyError(f"Unknown register: {name}")
+        
+        # Auto-create symbolic variable for unknown names (e.g., mem_rbp_4)
+        var_name = f"{self.prefix}{name_lower}" if self.prefix else name_lower
+        self.registers[name_lower] = BitVec(var_name, 64)
+        return self.registers[name_lower]
     
     def set_register(self, name: str, value) -> None:
         """

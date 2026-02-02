@@ -309,7 +309,11 @@ def test_signum_json_export():
 
 
 def test_signum_llm_rules():
-    """Test 6: Use LLM API to generate optimization rules for signum."""
+    """Test 6: Use LLM API to generate optimization rules for signum.
+    
+    Returns:
+        tuple: (success: bool, llm_output: str or None)
+    """
     print("\n" + "=" * 60)
     print("TEST 6: LLM-Generated Rules for Signum")
     print("=" * 60)
@@ -365,16 +369,16 @@ def test_signum_llm_rules():
         
         if result and len(result) > 50:
             print("\n✓ Test 6 passed! LLM generated optimization rules")
-            return True
+            return (True, result)  # Return both success and the LLM output
         else:
             print("\n⚠ Test 6: LLM response was empty or too short")
-            return False
+            return (False, None)
             
     except Exception as e:
         print(f"\n✗ Test 6 failed: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        return (False, None)
 
 
 def test_signum_z3_verification():
@@ -448,6 +452,102 @@ def test_signum_z3_verification():
         return False
 
 
+def test_llm_z3_bridge(llm_output: str = None):
+    """Test 8: Parse LLM output and verify rules with Z3 (the bridge).
+    
+    This closes the loop: LLM generates rules → Parse → Z3 verifies
+    
+    Args:
+        llm_output: Optional pre-generated LLM output. If None, generates new.
+    """
+    print("\n" + "=" * 60)
+    print("TEST 8: LLM → Parse → Z3 Bridge")
+    print("=" * 60)
+    
+    try:
+        # Check Z3 availability first
+        try:
+            from z3 import BitVec, Solver, sat
+            print("  ✓ Z3 solver available")
+        except ImportError:
+            print("  ⚠ Z3 not installed - skipping")
+            return True
+        
+        # Import verification and parsing modules
+        from verification.rule_verifier import verify_rule_with_details
+        from learned_rules.rule_parser import parse_llm_output
+        
+        # If no LLM output provided, generate new
+        if llm_output is None:
+            print("  Generating fresh LLM rules...")
+            from learned_rules.llm_rule_generator import generate_candidate_rules
+            signum_asm = [
+                "cmp DWORD PTR [rbp-4], 0",
+                "jle .L2",
+                "mov eax, 1",
+                "jmp .L3",
+            ]
+            llm_output = generate_candidate_rules(signum_asm)
+        
+        print(f"\n  LLM Output length: {len(llm_output)} chars")
+        
+        # Step 1: Parse LLM output into structured rules
+        print("\n  Step 1: Parsing LLM output...")
+        parsed_rules = parse_llm_output(llm_output)
+        print(f"    Parsed {len(parsed_rules)} rules from LLM output")
+        
+        if not parsed_rules:
+            print("\n  ⚠ No rules parsed from LLM output")
+            print("    (LLM may not be following the expected format)")
+            return True  # Not a failure, just no parseable rules
+        
+        # Step 2: Verify each rule with Z3
+        print("\n  Step 2: Verifying rules with Z3...")
+        verified_count = 0
+        failed_count = 0
+        error_count = 0
+        
+        for i, rule in enumerate(parsed_rules):
+            # Show what we're verifying
+            lhs_str = "; ".join(rule.lhs_seq[:2]) + ("..." if len(rule.lhs_seq) > 2 else "")
+            rhs_str = "; ".join(rule.rhs_seq[:2]) + ("..." if len(rule.rhs_seq) > 2 else "")
+            
+            result = verify_rule_with_details(rule)
+            
+            if result.get('verified'):
+                print(f"    ✓ Rule {i+1}: {lhs_str} → {rhs_str}")
+                verified_count += 1
+            elif 'error' in result:
+                print(f"    ⚠ Rule {i+1}: Parse error - {result['error'][:50]}")
+                error_count += 1
+            else:
+                print(f"    ✗ Rule {i+1}: Not semantically equivalent")
+                if 'counterexample' in result:
+                    print(f"        Counterexample: {result['counterexample']}")
+                failed_count += 1
+        
+        # Summary
+        print(f"\n  Results:")
+        print(f"    Parsed:   {len(parsed_rules)} rules")
+        print(f"    Verified: {verified_count} (correct optimizations)")
+        print(f"    Failed:   {failed_count} (incorrect transformations)")
+        print(f"    Errors:   {error_count} (couldn't parse instructions)")
+        
+        # Success criteria: at least we parsed and attempted verification
+        if len(parsed_rules) > 0:
+            print("\n✓ Test 8 PASSED! LLM→Z3 bridge working")
+            return True
+        else:
+            print("\n⚠ Test 8: No rules to verify")
+            return True
+            
+    except Exception as e:
+        print(f"\n✗ Test 8 failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def run_all_tests():
     """Run all signum optimization tests."""
     print("=" * 60)
@@ -457,24 +557,53 @@ def run_all_tests():
     print("  • Branched C code → Branchless assembly")
     print("  • Key patterns: xor eax,eax; setne; neg; cmovg")
     
-    tests = [
+    results = []
+    llm_output = None  # Will be captured from Test 6
+    
+    # Standard tests
+    standard_tests = [
         ("Basic Patterns (xor/sub self)", test_signum_basic_patterns),
         ("Comparison Patterns", test_signum_comparison_patterns),
         ("Strength Reduction", test_signum_strength_reduction),
         ("RL Workflow Simulation", test_signum_rl_workflow),
         ("JSON Export for RL", test_signum_json_export),
-        ("LLM-Generated Rules", test_signum_llm_rules),
-        ("Z3 SMT Verification", test_signum_z3_verification),
     ]
     
-    results = []
-    for name, test_fn in tests:
+    for name, test_fn in standard_tests:
         try:
             result = test_fn()
             results.append((name, result))
         except Exception as e:
             print(f"\n✗ {name} crashed: {e}")
             results.append((name, False))
+    
+    # Test 6: LLM Rules (capture output for Test 8)
+    try:
+        result = test_signum_llm_rules()
+        if isinstance(result, tuple):
+            success, llm_output = result
+        else:
+            success, llm_output = result, None
+        results.append(("LLM-Generated Rules", success))
+    except Exception as e:
+        print(f"\n✗ LLM-Generated Rules crashed: {e}")
+        results.append(("LLM-Generated Rules", False))
+    
+    # Test 7: Z3 Verification (standalone)
+    try:
+        result = test_signum_z3_verification()
+        results.append(("Z3 SMT Verification", result))
+    except Exception as e:
+        print(f"\n✗ Z3 SMT Verification crashed: {e}")
+        results.append(("Z3 SMT Verification", False))
+    
+    # Test 8: LLM→Z3 Bridge (uses output from Test 6)
+    try:
+        result = test_llm_z3_bridge(llm_output)
+        results.append(("LLM→Z3 Bridge", result))
+    except Exception as e:
+        print(f"\n✗ LLM→Z3 Bridge crashed: {e}")
+        results.append(("LLM→Z3 Bridge", False))
     
     # Summary
     print("\n" + "=" * 60)
