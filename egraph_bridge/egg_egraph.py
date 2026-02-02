@@ -117,6 +117,63 @@ if EGGLOG_AVAILABLE:
         def phi3(cls, a: "Asm", b: "Asm", c: "Asm") -> "Asm":
             """PHI node for SSA form (3 inputs)."""
             ...
+        
+        # ============================================
+        # Branchless Instruction Primitives
+        # ============================================
+        # These are needed for optimizations like signum:
+        #   xor eax, eax; test edi, edi; mov edx, 1
+        #   setne al; neg eax; test edi, edi; cmovg eax, edx
+        
+        @classmethod
+        def test(cls, a: "Asm", b: "Asm") -> "Asm":
+            """TEST instruction: sets flags based on a AND b (without storing result)."""
+            ...
+        
+        @classmethod
+        def cmp(cls, a: "Asm", b: "Asm") -> "Asm":
+            """CMP instruction: sets flags based on a - b (without storing result)."""
+            ...
+        
+        @classmethod
+        def setne(cls, flags: "Asm") -> "Asm":
+            """SETNE: Set byte to 1 if not equal (ZF=0), else 0."""
+            ...
+        
+        @classmethod
+        def sete(cls, flags: "Asm") -> "Asm":
+            """SETE: Set byte to 1 if equal (ZF=1), else 0."""
+            ...
+        
+        @classmethod
+        def setg(cls, flags: "Asm") -> "Asm":
+            """SETG: Set byte to 1 if greater (ZF=0 and SF=OF), else 0."""
+            ...
+        
+        @classmethod
+        def setl(cls, flags: "Asm") -> "Asm":
+            """SETL: Set byte to 1 if less (SF!=OF), else 0."""
+            ...
+        
+        @classmethod
+        def cmovg(cls, cond: "Asm", src: "Asm", dst: "Asm") -> "Asm":
+            """CMOVG: Conditional move if greater. Returns dst if cond > 0, else src."""
+            ...
+        
+        @classmethod
+        def cmovl(cls, cond: "Asm", src: "Asm", dst: "Asm") -> "Asm":
+            """CMOVL: Conditional move if less. Returns dst if cond < 0, else src."""
+            ...
+        
+        @classmethod
+        def cmove(cls, cond: "Asm", src: "Asm", dst: "Asm") -> "Asm":
+            """CMOVE: Conditional move if equal. Returns dst if cond == 0, else src."""
+            ...
+        
+        @classmethod
+        def cmovne(cls, cond: "Asm", src: "Asm", dst: "Asm") -> "Asm":
+            """CMOVNE: Conditional move if not equal. Returns dst if cond != 0, else src."""
+            ...
 
 
 # ============================================

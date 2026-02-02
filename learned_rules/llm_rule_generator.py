@@ -477,34 +477,80 @@ def generate_candidate_rules(instruction_window: list[str], provider: str = None
     # Format the instruction window
     instruction_text = '\n'.join(f"  {instr}" for instr in instruction_window)
     
-    # Construct the prompt
-    prompt = f"""You are an expert compiler optimizer specializing in assembly code.
+    # Construct the prompt with branchless optimization context
+    prompt = f"""You are a Compiler Optimization expert specializing in x86-64 assembly.
+Your goal is to generate "Rewrite Rules" that transform inefficient code into high-performance machine code.
 
 Given the following assembly instruction sequence:
 
 {instruction_text}
 
-Please suggest semantically equivalent rewrite rules that optimize this code.
+CRITICAL INSTRUCTIONS:
 
-Requirements:
-- Only suggest SAFE transformations that preserve program semantics
-- Focus on algebraic simplifications and structural optimizations
-- Each rule should have a clear LHS (left-hand side) and RHS (right-hand side)
-- Use pattern variables like r1, r2, imm1 for registers and immediates
-- Include any necessary conditions for the transformation to be valid
-- Avoid transformations that could cause incorrect behavior
+1. PRIORITIZE BRANCHLESS LOGIC: The highest value optimizations remove 'jle', 'jge', 'jmp' and replace them with:
+   - 'cmov' (Conditional Move): cmovg, cmovl, cmove, cmovne
+   - 'set' (Set Byte): setne, sete, setg, setl
+   - 'neg' (Negate)
+   - 'sbb' (Subtract with Borrow)
+   - 'test' (Efficient comparison against 0)
 
-Supported opcodes: MOV, ADD, SUB, MUL, DIV, MOD, INC, DEC, AND, OR, XOR, NOT, SHL, SHR
+2. DO NOT BREAK SEMANTICS:
+   - You CANNOT remove a 'cmp' instruction if a subsequent jump or cmov depends on the flags it sets.
+   - 'test reg, reg' is equivalent to comparing reg against 0 and sets ZF/SF flags.
+   - Conditional jumps (jle, jge, je, jne) REQUIRE preceding cmp or test to set flags.
+
+3. ALGEBRAIC IDENTITIES (always safe):
+   - xor reg, reg → Sets reg to 0 (shorter than mov reg, 0)
+   - add reg, 0 → No-op, can be removed
+   - sub reg, reg → Sets reg to 0
+   - mul reg, 1 → No-op
+   - and reg, reg → No-op
+   - or reg, reg → No-op
+
+4. PATTERN MATCHING SYNTAX:
+   - Use 'src', 'dst', 'r1', 'r2' as placeholders for registers
+   - Use 'imm' for immediate values
+   - Use 'Label_A', 'Label_B' for jump targets
+
+EXAMPLE OF A GOOD RULE (Branchless Signum):
+Name: "branch_to_cmov"
+LHS:
+  cmp src, 0
+  jle Label_A
+  mov dst, 1
+  jmp Label_B
+  Label_A:
+  mov dst, -1
+  Label_B:
+RHS:
+  xor eax, eax    ; Clear temp
+  test src, src   ; Check sign/zero
+  mov edx, 1      ; Load positive case
+  setne al        ; Set if not zero
+  neg eax         ; -1 if set
+  cmovg eax, edx  ; Move 1 if greater than 0
+Condition: dst can be clobbered; eax, edx available as scratch
+
+EXAMPLE OF A BAD RULE (NEVER DO THIS):
+Name: "remove_cmp"
+LHS:
+  cmp src, 0
+  jle Label_A
+RHS:
+  jle Label_A
+WHY IT'S WRONG: jle depends on flags set by cmp! Without cmp, jle uses garbage flags.
 
 Output format (strictly follow this):
+Rule: [name]
 LHS:
 instruction1
 instruction2
 RHS:
-instruction3
-Condition: [optional condition text, or "None"]
+instruction1
+instruction2
+Condition: [required conditions, or "None"]
 
-Suggest 2-5 candidate rules."""
+Generate 3 candidate rewrite rules for the input assembly."""
 
     # Call the LLM API
     response = call_llm_api(prompt, provider=provider)
