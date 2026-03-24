@@ -1,0 +1,106 @@
+%% Learn-R: LLM-Guided Equality Saturation for Assembly Optimization
+%% HIGH-LEVEL ARCHITECTURE DIAGRAM
+
+flowchart TB
+    subgraph INPUT["📥 INPUT LAYER"]
+        ASM["Assembly Code"]
+        CFG["Control Flow Graph"]
+    end
+
+    subgraph FRONTEND["🔧 FRONTEND"]
+        PARSER["Parser<br/>Parse ASM to AST"]
+        LOWERING["IR Lowering<br/>AST to IR"]
+        CODEGEN["Code Generator<br/>IR to ASM"]
+    end
+
+    subgraph ANALYSIS["📊 ANALYSIS"]
+        SSA["SSA Transform<br/>Static Single Assignment"]
+        DATAFLOW["Dataflow Analysis<br/>Reaching Definitions"]
+        DCE["Dead Code Elimination"]
+    end
+
+    subgraph ASM_IR["📝 ASM IR"]
+        INSTR["Instructions"]
+        BB["Basic Blocks"]
+        CFGIR["CFG Representation"]
+    end
+
+    subgraph EGRAPH["🔄 E-GRAPH BRIDGE"]
+        SSA2EXPR["SSA → Expression"]
+        EXPR2EG["Expression → E-Graph"]
+        EGGLOG["Egglog Engine<br/>Equality Saturation"]
+        EG2SSA["E-Graph → SSA"]
+    end
+
+    subgraph RULES["📐 REWRITE RULES"]
+        TIER0["Tier 0: Normalization"]
+        TIER1["Tier 1: Peephole"]
+        TIER2["Tier 2: Structural"]
+    end
+
+    subgraph LLM["🤖 LLM SYSTEM"]
+        LLMGEN["LLM Rule Generator<br/>OpenAI/Anthropic/Gemini"]
+        RULEPARSE["Rule Parser"]
+        RULEMEM["Rule Memory<br/>Persistence"]
+        RULEFILTER["Rule Filter"]
+    end
+
+    subgraph VERIFY["✅ VERIFICATION"]
+        SYMEXEC["Symbolic Executor"]
+        EQUIVCHK["Equivalence Checker<br/>Z3 SMT Solver"]
+        RULEVERIFY["Rule Verifier"]
+    end
+
+    subgraph ENGINE["⚡ HIERARCHICAL ENGINE"]
+        SCHEDULER["Tier Scheduler"]
+        MATCHER["Pattern Matcher"]
+        DEPTRACK["Dependency Tracker"]
+    end
+
+    subgraph PIPELINE["🔀 PIPELINE"]
+        MAIN["Main Orchestrator"]
+        FULLPIPE["Full Pipeline"]
+        SSAEG["SSA-EGraph Pipeline"]
+    end
+
+    subgraph OUTPUT["📤 OUTPUT"]
+        OPTASM["Optimized Assembly"]
+        METRICS["Rule Metrics"]
+    end
+
+    %% Main Flow
+    ASM --> PARSER
+    PARSER --> LOWERING
+    LOWERING --> ASM_IR
+    ASM_IR --> SSA
+    SSA --> DATAFLOW
+    DATAFLOW --> DCE
+    DCE --> SSA2EXPR
+    SSA2EXPR --> EXPR2EG
+    EXPR2EG --> EGGLOG
+    
+    %% Rules Integration
+    RULES --> EGGLOG
+    LLM --> RULEFILTER
+    RULEFILTER --> RULEVERIFY
+    RULEVERIFY --> EGGLOG
+    
+    %% Verification
+    SYMEXEC --> EQUIVCHK
+    EQUIVCHK --> RULEVERIFY
+    
+    %% Engine Control
+    ENGINE --> EGGLOG
+    SCHEDULER --> RULES
+    
+    %% Output
+    EGGLOG --> EG2SSA
+    EG2SSA --> CODEGEN
+    CODEGEN --> OPTASM
+    
+    %% Pipeline Orchestration
+    PIPELINE -.-> FRONTEND
+    PIPELINE -.-> ANALYSIS
+    PIPELINE -.-> EGRAPH
+    PIPELINE -.-> LLM
+    PIPELINE -.-> VERIFY
