@@ -8,6 +8,14 @@ Pipeline stages:
 4. Optimize with hierarchical rewrite engine
 5. Display results
 """
+import sys
+from pathlib import Path
+
+# Add project root to path so we can import modules
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 from typing import List
 from asm_ir import Instruction, BasicBlock, CFG
 from frontend import parse, lower_to_ir, ir_to_assembly

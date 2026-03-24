@@ -89,10 +89,11 @@ def parse_llm_output(raw_text: str) -> list[ParsedRule]:
                 continue
             
             # Add to appropriate section
+            clean_line = line.replace('`', '').strip()
             if current_section == 'lhs':
-                current_rule.lhs_seq.append(line)
+                current_rule.lhs_seq.append(clean_line)
             elif current_section == 'rhs':
-                current_rule.rhs_seq.append(line)
+                current_rule.rhs_seq.append(clean_line)
     
     # Don't forget the last rule
     if current_rule and (current_rule.lhs_seq or current_rule.rhs_seq):

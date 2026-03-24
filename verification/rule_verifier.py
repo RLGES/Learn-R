@@ -80,7 +80,8 @@ def parse_instruction_string(instr_str: str) -> Optional[Instruction]:
     if ';' in instr_str:
         instr_str = instr_str.split(';')[0]
     
-    instr_str = instr_str.strip()
+    # Remove backticks that might have been added by LLM's markdown formatting
+    instr_str = instr_str.replace('`', '').strip()
     if not instr_str:
         return None
     
@@ -118,7 +119,8 @@ def parse_instruction_string(instr_str: str) -> Optional[Instruction]:
 
 def verify_rule(parsed_rule: ParsedRule, 
                 timeout_ms: int = 5000,
-                return_counterexample: bool = False) -> bool | tuple[bool, dict]:
+                return_counterexample: bool = False,
+                check_flags: bool = False) -> bool | tuple[bool, dict]:
     """
     Verify that a parsed rule is semantically correct using SMT.
     
@@ -152,9 +154,9 @@ def verify_rule(parsed_rule: ParsedRule,
         
         # Check equivalence
         if return_counterexample:
-            return are_sequences_equivalent_with_model(lhs_instrs, rhs_instrs, timeout_ms)
+            return are_sequences_equivalent_with_model(lhs_instrs, rhs_instrs, timeout_ms, check_flags)
         else:
-            return are_sequences_equivalent(lhs_instrs, rhs_instrs, timeout_ms)
+            return are_sequences_equivalent(lhs_instrs, rhs_instrs, timeout_ms, check_flags)
     
     except Exception as e:
         print(f"Warning: Rule verification failed with exception: {e}")
@@ -162,7 +164,8 @@ def verify_rule(parsed_rule: ParsedRule,
 
 
 def verify_rule_with_details(parsed_rule: ParsedRule, 
-                             timeout_ms: int = 5000) -> dict:
+                             timeout_ms: int = 5000,
+                             check_flags: bool = False) -> dict:
     """
     Verify a rule and return detailed results.
     
@@ -187,7 +190,7 @@ def verify_rule_with_details(parsed_rule: ParsedRule,
     }
     
     try:
-        verified, counterexample = verify_rule(parsed_rule, timeout_ms, return_counterexample=True)
+        verified, counterexample = verify_rule(parsed_rule, timeout_ms, return_counterexample=True, check_flags=check_flags)
         result['verified'] = verified
         
         if not verified and counterexample:
