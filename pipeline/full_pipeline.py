@@ -5,7 +5,7 @@ Pipeline stages:
 1. Parse high-level code → AST
 2. Lower AST → three-address IR
 3. Generate assembly from IR
-4. Optimize with hierarchical rewrite engine
+4. Generate rewrites using hierarchical rewrite engine
 5. Display results
 """
 import sys
@@ -231,7 +231,7 @@ def print_instructions(instructions: List[Instruction], title: str = "Instructio
 
 def run_full_pipeline(source_code: str, verbose: bool = True, use_cfg: bool = False):
     """
-    Run the complete compilation and optimization pipeline.
+    Run the complete compilation and pipeline.
     
     Args:
         source_code: High-level source code string
@@ -290,7 +290,7 @@ def run_full_pipeline(source_code: str, verbose: bool = True, use_cfg: bool = Fa
     
     # Stage 5: Optimize with true LLM Rewrite Engine
     if verbose:
-        print("\nStage 5: Optimization (LLM + Equality Saturation)...")
+        print("\nStage 5: Generate rewrites using (LLM + Equality Saturation)...")
         
     try:
         from egraph_bridge.egglog_pipeline import EqualitySaturationPipeline
