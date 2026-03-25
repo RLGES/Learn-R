@@ -1,0 +1,7 @@
+x = 10
+y = x
+z = y
+w = 5
+flag = 0
+result = w + flag
+final = result + 0
