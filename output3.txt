@@ -1,0 +1,120 @@
+
+======================================================================
+COMPILING FILE: test_code3.txt
+======================================================================
+======================================================================
+FULL COMPILATION PIPELINE
+======================================================================
+
+Source Code:
+--------------------------------------------------
+a = 5
+start = a
+x = start + 0
+y = x * 1
+z = y * 2
+final = z
+
+
+Stage 1: Parsing...
+  - Generated AST with 6 statements
+    a = 5
+    start = a
+    x = (start + 0)
+    y = (x * 1)
+    z = (y * 2)
+    final = z
+
+Stage 2: Lowering to IR...
+  - Generated 13 IR instructions
+    t0 = 5
+    a = t0
+    start = a
+    t1 = 0
+    t2 = start + t1
+    x = t2
+    t3 = 1
+    t4 = x * t3
+    y = t4
+    t5 = 2
+    t6 = y * t5
+    z = t6
+    final = z
+
+Stage 3: Assembly generation...
+  - Generated 16 assembly instructions
+
+Original Assembly (16 instructions):
+--------------------------------------------------
+   0. MOV t0, 5
+   1. MOV a, t0
+   2. MOV start, a
+   3. MOV t1, 0
+   4. MOV t2, start
+   5. ADD t2, t1
+   6. MOV x, t2
+   7. MOV t3, 1
+   8. MOV t4, x
+   9. MUL t4, t3
+  10. MOV y, t4
+  11. MOV t5, 2
+  12. MOV t6, y
+  13. MUL t6, t5
+  14. MOV z, t6
+  15. MOV final, z
+
+Stage 5: Generate rewrites using (LLM + Equality Saturation)...
+✓ Loaded configuration from /Users/sumeet/Desktop/Capstone/Learn-R/.env
+
+  Fetching tailored rules from LLM for this sequence...
+
+  LLM Response:
+----------------------------------------
+Here are three candidate rewrite rules:
+
+**Rule: "eliminate_mul_by_one"**
+LHS:
+  MUL t4, t3
+RHS:
+  mov eax, t4
+Condition: None
+
+Explanation: Since mul reg, 1 is a no-op (algebraic identity), we can simply remove the multiplication and leave the value of t4 unchanged.
+
+**Rule: "branchless_add"**
+LHS:
+  MOV start, a
+  MOV t2, start
+  ADD t2, t1
+RHS:
+  mov eax, a
+  add eax, t1
+Condition: None
+
+Explanation: We can eliminate the unnecessary load of start into t2 and simply perform the addition direct...
+(truncated)
+----------------------------------------
+  ✓ Parsed 3 rules from LLM output
+    Rule 1: ✓ VERIFIED
+      LHS: ['MUL t4, t3']
+      RHS: ['mov eax, t4']
+    Rule 2: ✓ VERIFIED
+      LHS: ['MOV start, a', 'MOV t2, start', 'ADD t2, t1']
+      RHS: ['mov eax, a', 'add eax, t1']
+    Rule 3: ✓ VERIFIED
+      LHS: ['MOV t6, y', 'MUL t6, t5']
+      RHS: ['mov eax, y', 'test eax, eax', 'cmovz eax, t5']
+  Saturating E-Graph with learned rules...
+  ✓ Saturation complete
+    - LLM rules generated: 3
+    - Iterations: 10
+
+======================================================================
+E-GRAPH EQUIVALENCE RESULTS
+======================================================================
+  full_program: ((Asm(5) + Asm(0)) * Asm(1)) * Asm(2) → Asm(5) * Asm(2)  [✓ modified]
+
+--- Rewrite Trees (for RL Agent) ---
+Rewrite Summary (for RL):
+  full_program: ((Asm(5) + Asm(0)) * Asm(1)) * Asm(2) → Asm(5) * Asm(2) [✓ optimized]
+    Equivalents: ['((Asm(5) + Asm(0)) * Asm(1)) * Asm(2)', 'Asm(5) * Asm(2)']
