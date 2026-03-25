@@ -190,8 +190,8 @@ def create_algebraic_rules() -> List[Any]:
     if not EGGLOG_AVAILABLE:
         return []
     
-    x = Asm.var("x")
-    y = Asm.var("y")
+    x = var("x", Asm)
+    y = var("y", Asm)
     zero = Asm(0)
     one = Asm(1)
     
@@ -248,7 +248,7 @@ def create_strength_reduction_rules() -> List[Any]:
     if not EGGLOG_AVAILABLE:
         return []
     
-    x = Asm.var("x")
+    x = var("x", Asm)
     
     rules = []
     
@@ -278,8 +278,8 @@ def create_commutativity_rules() -> List[Any]:
     if not EGGLOG_AVAILABLE:
         return []
     
-    x = Asm.var("x")
-    y = Asm.var("y")
+    x = var("x", Asm)
+    y = var("y", Asm)
     
     rules = []
     
@@ -302,9 +302,9 @@ def create_associativity_rules() -> List[Any]:
     if not EGGLOG_AVAILABLE:
         return []
     
-    x = Asm.var("x")
-    y = Asm.var("y")
-    z = Asm.var("z")
+    x = var("x", Asm)
+    y = var("y", Asm)
+    z = var("z", Asm)
     
     rules = []
     
@@ -336,7 +336,7 @@ class EggEGraph:
         egraph = EggEGraph()
         
         # Add expressions
-        x = Asm.var("x")
+        x = var("x", Asm)
         expr = x + Asm(0)  # x + 0
         egraph.register(expr)
         
@@ -827,7 +827,7 @@ if __name__ == "__main__":
     print("-" * 30)
     
     egraph = EggEGraph()
-    x = Asm.var("x")
+    x = var("x", Asm)
     zero = Asm(0)
     one = Asm(1)
     
@@ -870,7 +870,7 @@ if __name__ == "__main__":
     egraph2 = EggEGraph()
     egraph2.configure(use_strength_reduction=True)
     
-    y = Asm.var("y")
+    y = var("y", Asm)
     
     # y * 2 should become y << 1
     expr5 = y * Asm(2)
@@ -896,7 +896,7 @@ if __name__ == "__main__":
     
     egraph3 = EggEGraph()
     
-    a = Asm.var("a")
+    a = var("a", Asm)
     
     # phi(a, a) should simplify to a
     expr7 = Asm.phi(a, a)

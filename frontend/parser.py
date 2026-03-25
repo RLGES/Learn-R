@@ -368,9 +368,10 @@ class Parser:
             stmt = self.statement()
             statements.append(stmt)
             
-            # Consume newline or check for EOF
+            # Consume all newlines or check for EOF
             if self.current_token.type == 'NEWLINE':
-                self.eat('NEWLINE')
+                while self.current_token.type == 'NEWLINE':
+                    self.eat('NEWLINE')
             elif self.current_token.type != 'EOF':
                 self.error("Expected newline or end of input")
         

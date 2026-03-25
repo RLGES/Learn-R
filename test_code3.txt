@@ -1,0 +1,6 @@
+a = 5
+start = a
+x = start + 0
+y = x * 1
+z = y * 2
+final = z
