@@ -71,42 +71,44 @@ Stage 5: Generate rewrites using (LLM + Equality Saturation)...
 
   LLM Response:
 ----------------------------------------
-Here are three candidate rewrite rules based on the given instructions and optimization criteria:
+Here are three candidate rewrite rules:
 
-**Rule 1: Eliminate Unnecessary MOV Instructions**
-
-Name: "eliminate_unnecessary_mov"
-
+**Rule: "eliminate_sub_zero"**
 LHS:
-  MOV t0, 10
-  MOV x, t0
+  sub dst, src
+  cmp dst, 0
 RHS:
-  mov x, 10
-
+  xor dst, dst    ; Clear temp
+  test src, src   ; Check sign/zero
+  setl al         ; Set if less than zero
+  cmovl dst, -1   ; Move -1 if less than zero
 Condition: None
 
-Explanation: The LHS sequence is equivalent to the RHS. We can directly load the value into register `x` instead of storing it in `t0` first.
-
-**Rule 2: Simplify Addition with Zero**
-
-Name: "simplify_add_with_zero"
-
+**Rule: "replace_add_with_cmov"**
 LHS:
-  MOV t3, w
-  ADD t3, flag
-R...
+  cmp r1, r2
+  jge Label_A
+  mov dst, r3
+  jmp Label_B
+  Label_A:
+  mov dst, r4
+  Label_B:
+RHS:
+  xor eax, eax    ; Clear temp
+  test r1, r1     ; Check sign/zero
+  mov edx, r2   ...
 (truncated)
 ----------------------------------------
   ✓ Parsed 3 rules from LLM output
     Rule 1: ✓ VERIFIED
-      LHS: ['MOV t0, 10', 'MOV x, t0']
-      RHS: ['mov x, 10']
+      LHS: ['sub dst, src', 'cmp dst, 0']
+      RHS: ['xor dst, dst    ; Clear temp', 'test src, src   ; Check sign/zero', 'setl al         ; Set if less than zero', 'cmovl dst, -1   ; Move -1 if less than zero']
     Rule 2: ✓ VERIFIED
-      LHS: ['MOV t3, w', 'ADD t3, flag']
-      RHS: ['add t3, flag']
+      LHS: ['cmp r1, r2', 'jge Label_A', 'mov dst, r3', 'jmp Label_B', 'Label_A:', 'mov dst, r4', 'Label_B:']
+      RHS: ['xor eax, eax    ; Clear temp', 'test r1, r1     ; Check sign/zero', 'mov edx, r2      ; Load positive case', 'setg al         ; Set if greater than or equal to', 'cmovge dst, edx  ; Move r4 if greater than or equal to']
     Rule 3: ✓ VERIFIED
-      LHS: ['MOV t2, 0', 'MOV flag, t2']
-      RHS: ['xor eax, eax    ; Clear temp', 'test t2, t2     ; Check if zero', 'sete al         ; Set if equal to zero', 'mov flag, eax']
+      LHS: ['mov t5, result']
+      RHS: ['mov t5, eax    ; Use existing register']
   Saturating E-Graph with learned rules...
   ✓ Saturation complete
     - LLM rules generated: 3
@@ -115,8 +117,9 @@ R...
 ======================================================================
 E-GRAPH EQUIVALENCE RESULTS
 ======================================================================
-  full_program: (Asm(5) + Asm(0)) + Asm(0) → (Asm(5) + Asm(0)) + Asm(0)  [-]
+  full_program: (Asm(5) + Asm(0)) + Asm(0) → Asm(5)  [✓ modified]
 
 --- Rewrite Trees (for RL Agent) ---
 Rewrite Summary (for RL):
-  full_program: (Asm(5) + Asm(0)) + Asm(0) → (Asm(5) + Asm(0)) + Asm(0) [- unchanged]
+  full_program: (Asm(5) + Asm(0)) + Asm(0) → Asm(5) [✓ optimized]
+    Equivalents: ['(Asm(5) + Asm(0)) + Asm(0)', 'Asm(5)']

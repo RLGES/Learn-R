@@ -1,0 +1,132 @@
+======================================================================
+COMPILING FILE: test_code2.txt
+======================================================================
+======================================================================
+FULL COMPILATION PIPELINE
+======================================================================
+
+Source Code:
+--------------------------------------------------
+x = 10
+y = 20
+
+if (x < y) {
+    result = 1
+} else {
+    result = 0
+}
+
+final = result + 5
+
+Stage 1: Parsing...
+  - Generated AST with 4 statements
+    x = 10
+    y = 20
+    if (x < y) {
+  result = 1
+} else {
+  result = 0
+}
+    final = (result + 5)
+
+Stage 2: Lowering to IR...
+  - Generated 16 IR instructions
+    t0 = 10
+    x = t0
+    t1 = 20
+    y = t1
+    CMP x, y
+    JGE L0
+    t2 = 1
+    result = t2
+    JMP L1
+    L0:
+    t3 = 0
+    result = t3
+    L1:
+    t4 = 5
+    t5 = result + t4
+    final = t5
+
+Stage 3: Assembly generation...
+  - Generated 15 assembly instructions
+
+Original Assembly (15 instructions):
+--------------------------------------------------
+   0. MOV t0, 10
+   1. MOV x, t0
+   2. MOV t1, 20
+   3. MOV y, t1
+   4. CMP x, y
+   5. JGE L0
+   6. MOV t2, 1
+   7. MOV result, t2
+   8. JMP L1
+   9. MOV t3, 0
+  10. MOV result, t3
+  11. MOV t4, 5
+  12. MOV t5, result
+  13. ADD t5, t4
+  14. MOV final, t5
+
+Stage 5: Generate rewrites using (LLM + Equality Saturation)...
+✓ Loaded configuration from /Users/sumeet/Desktop/Capstone/Learn-R/.env
+
+  Fetching tailored rules from LLM for this sequence...
+
+  LLM Response:
+----------------------------------------
+Here are three candidate rewrite rules:
+
+**Rule: "cmov_x_y"**
+LHS:
+  CMP x, y
+  JGE L0
+RHS:
+  xor eax, eax    ; Clear temp
+  test src, dst   ; Check if x > y (ZF set)
+  mov edx, 1      ; Load true case
+  cmovg eax, edx  ; Move 1 if greater than 0
+Condition: None
+
+**Rule: "simplify_result"**
+LHS:
+  MOV t2, 1
+  MOV result, t2
+RHS:
+  xor eax, eax    ; Clear temp (result)
+  mov eax, 1      ; Load constant into result
+Condition: None
+
+**Rule: "remove_jmp"**
+LHS:
+  JMP L1
+  MOV t3, 0
+  MOV result, t3
+...
+(truncated)
+----------------------------------------
+  ✓ Parsed 3 rules from LLM output
+    Rule 1: ✗ REJECTED (failed verification)
+      LHS: ['CMP x, y', 'JGE L0']
+      RHS: ['xor eax, eax    ; Clear temp', 'test src, dst   ; Check if x > y (ZF set)', 'mov edx, 1      ; Load true case', 'cmovg eax, edx  ; Move 1 if greater than 0']
+    Rule 2: ✓ VERIFIED
+      LHS: ['MOV t2, 1', 'MOV result, t2']
+      RHS: ['xor eax, eax    ; Clear temp (result)', 'mov eax, 1      ; Load constant into result']
+    Rule 3: ✓ VERIFIED
+      LHS: ['JMP L1', 'MOV t3, 0', 'MOV result, t3']
+      RHS: ['xor eax, eax    ; Clear temp (t3)', 'mov eax, 0      ; Load constant into result', 'jmp L1          ; Jump to target label']
+  Saturating E-Graph with learned rules...
+  ✓ Saturation complete
+    - LLM rules generated: 2
+    - Iterations: 10
+
+======================================================================
+E-GRAPH EQUIVALENCE RESULTS
+======================================================================
+  full_program: Asm(0) + Asm(5) → Asm(5)  [✓ modified]
+
+--- Rewrite Trees (for RL Agent) ---
+Rewrite Summary (for RL):
+  full_program: Asm(0) + Asm(5) → Asm(5) [✓ optimized]
+    Equivalents: ['Asm(0) + Asm(5)', 'Asm(5)']
