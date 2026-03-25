@@ -194,12 +194,14 @@ class EqualitySaturationPipeline:
         """Add a pre-converted LLM rule."""
         self._llm_rules.append(rule)
     
-    def generate_llm_rules(self, prompt_context: str = None) -> int:
+    def generate_llm_rules(self, prompt_context: str = None, verify: bool = True, verbose: bool = True) -> int:
         """
         Generate rules using the LLM API.
         
         Args:
             prompt_context: Additional context for the prompt
+            verify: Whether to verify the rules with Z3
+            verbose: Whether to print detailed rule breakdown
         
         Returns:
             Number of rules generated
@@ -208,61 +210,74 @@ class EqualitySaturationPipeline:
             print("Warning: LLM not available, skipping rule generation")
             return 0
         
-        # Build prompt
-        prompt = self._build_rule_generation_prompt(prompt_context)
-        
         try:
-            # Call LLM
-            response = call_llm_api(prompt)
+            from learned_rules.llm_rule_generator import generate_candidate_rules
             
-            # Parse and convert rules
-            rules = convert_llm_output_to_egglog(response, verify=False)
+            # Convert context back to list for generate_candidate_rules
+            instruction_window = prompt_context.split('\\n') if prompt_context else []
             
-            for rule in rules:
-                self._llm_rules.append(rule)
+            # Directly call the centralized generator
+            response = generate_candidate_rules(instruction_window)
             
-            return len(rules)
+            if verbose:
+                print("\n  LLM Response:")
+                print("-" * 40)
+                print(response[:500] + "...\n(truncated)" if len(response) > 500 else response)
+                print("-" * 40)
+            
+            # Import necessary parser
+            from learned_rules.rule_parser import parse_llm_output
+            
+            # Parse LLM output
+            parsed_rules = parse_llm_output(response)
+            if verbose:
+                print(f"  ✓ Parsed {len(parsed_rules)} rules from LLM output")
+            
+            # Convert and verify rules safely
+            converter = self._rule_converter
+            converter.enable_verification = verify
+            
+            verified_count = 0
+            for i, rule in enumerate(parsed_rules, 1):
+                try:
+                    converted = converter.convert_rule(rule)
+                    if converted:
+                        # Check for duplicates using the string representation of the egglog rewrite
+                        rule_str = str(converted.to_egglog())
+                        is_duplicate = False
+                        for existing_rule in self._llm_rules:
+                            if str(existing_rule.to_egglog()) == rule_str:
+                                is_duplicate = True
+                                break
+                                
+                        if is_duplicate:
+                            if verbose:
+                                print(f"    Rule {i}: ⚠ SKIPPED (Duplicate rule)")
+                                print(f"      LHS: {rule.lhs_seq}")
+                            continue
+
+                        verified_count += 1
+                        self._llm_rules.append(converted)
+                        if verbose:
+                            print(f"    Rule {i}: ✓ VERIFIED")
+                            print(f"      LHS: {rule.lhs_seq}")
+                            print(f"      RHS: {rule.rhs_seq}")
+                    else:
+                        if verbose:
+                            print(f"    Rule {i}: ✗ REJECTED (failed verification)")
+                            print(f"      LHS: {rule.lhs_seq}")
+                            print(f"      RHS: {rule.rhs_seq}")
+                except Exception as e:
+                    if verbose:
+                        print(f"    Rule {i}: ✗ ERROR ({e})")
+            
+            return verified_count
             
         except Exception as e:
             print(f"Error generating LLM rules: {e}")
             return 0
     
-    def _build_rule_generation_prompt(self, context: str = None) -> str:
-        """Build the prompt for LLM rule generation."""
-        prompt = """Generate rewrite rules for x86/assembly code optimization.
-
-Rules should be in this format:
-LHS:
-<instruction sequence pattern>
-RHS:
-<optimized instruction sequence>
-Condition: <optional precondition>
-
-Example rules:
-1. Identity elimination:
-LHS:
-ADD r1, 0
-RHS:
-(empty)
-Condition: None
-
-2. Strength reduction:
-LHS:
-MUL r1, 2
-RHS:
-SHL r1, 1
-Condition: None
-
-Generate 3-5 optimization rules that:
-- Simplify arithmetic operations
-- Apply strength reduction (mul -> shift)
-- Eliminate redundant operations
-"""
-        
-        if context:
-            prompt += f"\nAdditional context: {context}"
-        
-        return prompt
+    # Removed _build_rule_generation_prompt to use unified prompt from learned_rules.llm_rule_generator
     
     def optimize(self) -> OptimizationResult:
         """

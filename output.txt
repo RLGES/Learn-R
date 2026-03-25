@@ -1,0 +1,122 @@
+
+======================================================================
+COMPILING FILE: test_code.txt
+======================================================================
+======================================================================
+FULL COMPILATION PIPELINE
+======================================================================
+
+Source Code:
+--------------------------------------------------
+x = 10
+y = x
+z = y
+w = 5
+flag = 0
+result = w + flag
+final = result + 0
+
+
+Stage 1: Parsing...
+  - Generated AST with 7 statements
+    x = 10
+    y = x
+    z = y
+    w = 5
+    flag = 0
+    result = (w + flag)
+    final = (result + 0)
+
+Stage 2: Lowering to IR...
+  - Generated 13 IR instructions
+    t0 = 10
+    x = t0
+    y = x
+    z = y
+    t1 = 5
+    w = t1
+    t2 = 0
+    flag = t2
+    t3 = w + flag
+    result = t3
+    t4 = 0
+    t5 = result + t4
+    final = t5
+
+Stage 3: Assembly generation...
+  - Generated 15 assembly instructions
+
+Original Assembly (15 instructions):
+--------------------------------------------------
+   0. MOV t0, 10
+   1. MOV x, t0
+   2. MOV y, x
+   3. MOV z, y
+   4. MOV t1, 5
+   5. MOV w, t1
+   6. MOV t2, 0
+   7. MOV flag, t2
+   8. MOV t3, w
+   9. ADD t3, flag
+  10. MOV result, t3
+  11. MOV t4, 0
+  12. MOV t5, result
+  13. ADD t5, t4
+  14. MOV final, t5
+
+Stage 5: Generate rewrites using (LLM + Equality Saturation)...
+✓ Loaded configuration from /Users/sumeet/Desktop/Capstone/Learn-R/.env
+
+  Fetching tailored rules from LLM for this sequence...
+
+  LLM Response:
+----------------------------------------
+Here are three candidate rewrite rules based on the given instructions and optimization criteria:
+
+**Rule 1: Eliminate Unnecessary MOV Instructions**
+
+Name: "eliminate_unnecessary_mov"
+
+LHS:
+  MOV t0, 10
+  MOV x, t0
+RHS:
+  mov x, 10
+
+Condition: None
+
+Explanation: The LHS sequence is equivalent to the RHS. We can directly load the value into register `x` instead of storing it in `t0` first.
+
+**Rule 2: Simplify Addition with Zero**
+
+Name: "simplify_add_with_zero"
+
+LHS:
+  MOV t3, w
+  ADD t3, flag
+R...
+(truncated)
+----------------------------------------
+  ✓ Parsed 3 rules from LLM output
+    Rule 1: ✓ VERIFIED
+      LHS: ['MOV t0, 10', 'MOV x, t0']
+      RHS: ['mov x, 10']
+    Rule 2: ✓ VERIFIED
+      LHS: ['MOV t3, w', 'ADD t3, flag']
+      RHS: ['add t3, flag']
+    Rule 3: ✓ VERIFIED
+      LHS: ['MOV t2, 0', 'MOV flag, t2']
+      RHS: ['xor eax, eax    ; Clear temp', 'test t2, t2     ; Check if zero', 'sete al         ; Set if equal to zero', 'mov flag, eax']
+  Saturating E-Graph with learned rules...
+  ✓ Saturation complete
+    - LLM rules generated: 3
+    - Iterations: 10
+
+======================================================================
+E-GRAPH EQUIVALENCE RESULTS
+======================================================================
+  full_program: (Asm(5) + Asm(0)) + Asm(0) → (Asm(5) + Asm(0)) + Asm(0)  [-]
+
+--- Rewrite Trees (for RL Agent) ---
+Rewrite Summary (for RL):
+  full_program: (Asm(5) + Asm(0)) + Asm(0) → (Asm(5) + Asm(0)) + Asm(0) [- unchanged]
