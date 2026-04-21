@@ -1,0 +1,125 @@
+
+======================================================================
+COMPILING FILE: test_code.txt
+======================================================================
+======================================================================
+FULL COMPILATION PIPELINE
+======================================================================
+
+Source Code:
+--------------------------------------------------
+x = 10
+y = x
+z = y
+w = 5
+flag = 0
+result = w + flag
+final = result + 0
+
+
+Stage 1: Parsing...
+  - Generated AST with 7 statements
+    x = 10
+    y = x
+    z = y
+    w = 5
+    flag = 0
+    result = (w + flag)
+    final = (result + 0)
+
+Stage 2: Lowering to IR...
+  - Generated 13 IR instructions
+    t0 = 10
+    x = t0
+    y = x
+    z = y
+    t1 = 5
+    w = t1
+    t2 = 0
+    flag = t2
+    t3 = w + flag
+    result = t3
+    t4 = 0
+    t5 = result + t4
+    final = t5
+
+Stage 3: Assembly generation...
+  - Generated 15 assembly instructions
+
+Original Assembly (15 instructions):
+--------------------------------------------------
+   0. MOV t0, 10
+   1. MOV x, t0
+   2. MOV y, x
+   3. MOV z, y
+   4. MOV t1, 5
+   5. MOV w, t1
+   6. MOV t2, 0
+   7. MOV flag, t2
+   8. MOV t3, w
+   9. ADD t3, flag
+  10. MOV result, t3
+  11. MOV t4, 0
+  12. MOV t5, result
+  13. ADD t5, t4
+  14. MOV final, t5
+
+Stage 5: Generate rewrites using (LLM + Equality Saturation)...
+✓ Loaded configuration from /Users/sumeet/Desktop/Capstone/Learn-R/.env
+
+  Fetching tailored rules from LLM for this sequence...
+
+  LLM Response:
+----------------------------------------
+Here are three candidate rewrite rules:
+
+**Rule: "eliminate_sub_zero"**
+LHS:
+  sub dst, src
+  cmp dst, 0
+RHS:
+  xor dst, dst    ; Clear temp
+  test src, src   ; Check sign/zero
+  setl al         ; Set if less than zero
+  cmovl dst, -1   ; Move -1 if less than zero
+Condition: None
+
+**Rule: "replace_add_with_cmov"**
+LHS:
+  cmp r1, r2
+  jge Label_A
+  mov dst, r3
+  jmp Label_B
+  Label_A:
+  mov dst, r4
+  Label_B:
+RHS:
+  xor eax, eax    ; Clear temp
+  test r1, r1     ; Check sign/zero
+  mov edx, r2   ...
+(truncated)
+----------------------------------------
+  ✓ Parsed 3 rules from LLM output
+    Rule 1: ✓ VERIFIED
+      LHS: ['sub dst, src', 'cmp dst, 0']
+      RHS: ['xor dst, dst    ; Clear temp', 'test src, src   ; Check sign/zero', 'setl al         ; Set if less than zero', 'cmovl dst, -1   ; Move -1 if less than zero']
+    Rule 2: ✓ VERIFIED
+      LHS: ['cmp r1, r2', 'jge Label_A', 'mov dst, r3', 'jmp Label_B', 'Label_A:', 'mov dst, r4', 'Label_B:']
+      RHS: ['xor eax, eax    ; Clear temp', 'test r1, r1     ; Check sign/zero', 'mov edx, r2      ; Load positive case', 'setg al         ; Set if greater than or equal to', 'cmovge dst, edx  ; Move r4 if greater than or equal to']
+    Rule 3: ✓ VERIFIED
+      LHS: ['mov t5, result']
+      RHS: ['mov t5, eax    ; Use existing register']
+  Saturating E-Graph with learned rules...
+  ✓ Saturation complete
+    - LLM rules generated: 3
+    - Iterations: 10
+
+======================================================================
+E-GRAPH EQUIVALENCE RESULTS
+======================================================================
+  full_program: (Asm(5) + Asm(0)) + Asm(0) → Asm(5)  [✓ modified]
+
+--- Rewrite Trees (for RL Agent) ---
+Rewrite Summary (for RL):
+  full_program: (Asm(5) + Asm(0)) + Asm(0) → Asm(5) [✓ optimized]
+    Equivalents: ['(Asm(5) + Asm(0)) + Asm(0)', 'Asm(5)']

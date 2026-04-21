@@ -25,7 +25,8 @@ class SymbolicExecutor:
         """Initialize executor."""
         self.supported_opcodes = {
             'MOV', 'ADD', 'SUB', 'CMP',         # Basic operations
-            'IMUL', 'AND', 'OR', 'XOR', 'NOT',  # Extended arithmetic and bitwise
+            'IMUL', 'MUL',                       # Multiplication
+            'AND', 'OR', 'XOR', 'NOT',           # Bitwise operations
             'SHL', 'SHR'                         # Shift operations
         }
     
@@ -294,6 +295,137 @@ class SymbolicExecutor:
         result = dst_value >> src_value  # z3 LShR
         state.set_register(dst, result)
     
+    def execute_test(self, instr: Instruction, state: SymbolicState) -> None:
+        """
+        Execute TEST instruction: sets flags based on dst AND src
+        
+        Sets:
+            ZF = (dst & src) == 0
+            SF = (dst & src) < 0  [sign bit]
+        
+        Args:
+            instr: TEST instruction
+            state: Symbolic state (modified in-place)
+        """
+        dst = instr.dst
+        src = instr.srcs[0] if instr.srcs else dst  # TEST r, r is common
+        
+        dst_value = state.get_register(dst)
+        src_value = self._parse_operand(src, state)
+        
+        result = dst_value & src_value
+        
+        # ZF: Zero flag (result == 0)
+        state.set_flag('zf', result == 0)
+        
+        # SF: Sign flag (negative result)
+        state.set_flag('sf', result < 0)
+    
+    def execute_neg(self, instr: Instruction, state: SymbolicState) -> None:
+        """
+        Execute NEG instruction: dst := -dst (two's complement negation)
+        
+        Args:
+            instr: NEG instruction
+            state: Symbolic state (modified in-place)
+        """
+        dst = instr.dst
+        dst_value = state.get_register(dst)
+        result = -dst_value
+        state.set_register(dst, result)
+    
+    def execute_setcc(self, opcode: str, instr: Instruction, state: SymbolicState) -> None:
+        """
+        Execute SETcc instructions: set byte based on flags
+        
+        SETNE/SETNZ: dst = 1 if ZF=0, else 0
+        SETE/SETZ:   dst = 1 if ZF=1, else 0
+        SETL:        dst = 1 if SF!=OF, else 0 (we simplify to SF)
+        SETG:        dst = 1 if ZF=0 and SF=OF, else 0
+        
+        Args:
+            opcode: The specific SETcc opcode
+            instr: SET instruction
+            state: Symbolic state (modified in-place)
+        """
+        from z3 import If, BitVecVal
+        
+        dst = instr.dst
+        zf = state.get_flag('zf')
+        sf = state.get_flag('sf')
+        
+        if opcode in ('SETNE', 'SETNZ'):
+            # Set if not equal (ZF=0)
+            condition = zf == False
+        elif opcode in ('SETE', 'SETZ'):
+            # Set if equal (ZF=1)
+            condition = zf == True
+        elif opcode == 'SETL':
+            # Set if less (simplified: SF=1)
+            condition = sf == True
+        elif opcode == 'SETG':
+            # Set if greater (ZF=0 and SF=0)
+            from z3 import And
+            condition = And(zf == False, sf == False)
+        else:
+            # Default: unknown SETcc, treat as symbolic
+            condition = zf == False
+        
+        # Result is 1 if condition true, else 0
+        result = If(condition, BitVecVal(1, 64), BitVecVal(0, 64))
+        state.set_register(dst, result)
+    
+    def execute_cmovcc(self, opcode: str, instr: Instruction, state: SymbolicState) -> None:
+        """
+        Execute CMOVcc instructions: conditional move based on flags
+        
+        CMOVG:  dst = src if greater (ZF=0 and SF=OF)
+        CMOVL:  dst = src if less (SF!=OF)
+        CMOVE:  dst = src if equal (ZF=1)
+        CMOVNE: dst = src if not equal (ZF=0)
+        
+        Args:
+            opcode: The specific CMOVcc opcode
+            instr: CMOV instruction
+            state: Symbolic state (modified in-place)
+        """
+        from z3 import If, And
+        
+        dst = instr.dst
+        src = instr.srcs[0] if instr.srcs else "0"
+        
+        dst_value = state.get_register(dst)
+        src_value = self._parse_operand(src, state)
+        
+        zf = state.get_flag('zf')
+        sf = state.get_flag('sf')
+        
+        if opcode == 'CMOVG':
+            # Move if greater (ZF=0 and SF=0)
+            condition = And(zf == False, sf == False)
+        elif opcode == 'CMOVL':
+            # Move if less (SF=1)
+            condition = sf == True
+        elif opcode in ('CMOVE', 'CMOVZ'):
+            # Move if equal (ZF=1)
+            condition = zf == True
+        elif opcode in ('CMOVNE', 'CMOVNZ'):
+            # Move if not equal (ZF=0)
+            condition = zf == False
+        elif opcode == 'CMOVLE':
+            # Move if less or equal (ZF=1 or SF=1)
+            from z3 import Or
+            condition = Or(zf == True, sf == True)
+        elif opcode == 'CMOVGE':
+            # Move if greater or equal (SF=0)
+            condition = sf == False
+        else:
+            # Unknown CMOVcc, default to ZF=0
+            condition = zf == False
+        
+        result = If(condition, src_value, dst_value)
+        state.set_register(dst, result)
+
     def execute_instruction(self, instr: Instruction, state: SymbolicState) -> None:
         """
         Execute a single instruction symbolically.
@@ -313,10 +445,14 @@ class SymbolicExecutor:
             self.execute_add(instr, state)
         elif opcode == 'SUB':
             self.execute_sub(instr, state)
-        elif opcode == 'IMUL':
+        elif opcode == 'IMUL' or opcode == 'MUL':
             self.execute_imul(instr, state)
         elif opcode == 'CMP':
             self.execute_cmp(instr, state)
+        elif opcode == 'TEST':
+            self.execute_test(instr, state)
+        elif opcode == 'NEG':
+            self.execute_neg(instr, state)
         elif opcode == 'AND':
             self.execute_and(instr, state)
         elif opcode == 'OR':
@@ -329,6 +465,20 @@ class SymbolicExecutor:
             self.execute_shl(instr, state)
         elif opcode == 'SHR':
             self.execute_shr(instr, state)
+        # SETcc instructions
+        elif opcode.startswith('SET'):
+            self.execute_setcc(opcode, instr, state)
+        # CMOVcc instructions
+        elif opcode.startswith('CMOV'):
+            self.execute_cmovcc(opcode, instr, state)
+        # Control flow - skip for data flow verification
+        elif opcode in ('JMP', 'JE', 'JNE', 'JZ', 'JNZ', 'JL', 'JLE', 'JG', 'JGE', 
+                        'JA', 'JB', 'JAE', 'JBE', 'JS', 'JNS', 'JO', 'JNO'):
+            # Skip jumps - they don't affect register state
+            pass
+        elif opcode in ('PUSH', 'POP', 'CALL', 'RET', 'NOP', 'LEAVE'):
+            # Skip stack/control instructions for simplified verification
+            pass
         else:
             raise ValueError(f"Unsupported opcode for symbolic execution: {opcode}")
     

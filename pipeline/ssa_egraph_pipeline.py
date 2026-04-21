@@ -11,6 +11,13 @@ Pipeline stages:
 5. Extract optimized expressions
 6. Convert back to SSA instructions
 """
+import sys
+from pathlib import Path
+
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 from typing import List, Optional
 from asm_ir import BasicBlock, Instruction, CFG
 from analysis import convert_cfg_to_ssa

@@ -19,12 +19,12 @@ This system represents assembly instructions as structured objects, applies rewr
 - **Smart sampling**: Intelligent window selection for LLM
 - **Rule cooldown**: Failing rules temporarily disabled
 - **SMT verification**: Formal verification of learned rules with z3
-- **SSA transformation**: Complete Static Single Assignment conversion ⭐ NEW
-- **Dataflow analysis**: Reaching definitions and liveness analysis ⭐ NEW
-- **Dead code elimination**: Remove unused instructions ⭐ NEW
-- **E-graph bridge**: SSA to e-graph optimization pipeline ⭐ NEW
-- **Frontend compiler**: High-level language → ASM IR compilation ⭐ NEW
-- **Control flow**: If/while statements and CFG construction ⭐ NEW
+- **SSA transformation**: Complete Static Single Assignment conversion  NEW
+- **Dataflow analysis**: Reaching definitions and liveness analysis  NEW
+- **Dead code elimination**: Remove unused instructions  NEW
+- **E-graph bridge**: SSA to e-graph optimization pipeline  NEW
+- **Frontend compiler**: High-level language → ASM IR compilation  NEW
+- **Control flow**: If/while statements and CFG construction  NEW
 - **Modular design**: Clean separation of concerns across modules
 - **No external dependencies**: Uses only Python standard library (z3-solver optional for verification)
 
@@ -35,17 +35,17 @@ capstone/
 ├── asm_ir/                      # Assembly intermediate representation
 │   ├── instruction.py           # Instruction dataclass with SSA support
 │   ├── basicblock.py            # BasicBlock class
-│   └── cfg.py                   # Control Flow Graph ⭐ NEW
-├── frontend/                    # High-level language frontend ⭐ NEW
+│   └── cfg.py                   # Control Flow Graph  NEW
+├── frontend/                    # High-level language frontend  NEW
 │   ├── parser.py                # Lexer and parser
 │   ├── ast_nodes.py             # Abstract syntax tree nodes
 │   ├── ir_lowering.py           # AST → IR lowering
 │   └── asm_codegen.py           # IR → assembly code generation
-├── analysis/                    # Compiler analysis passes ⭐ NEW
+├── analysis/                    # Compiler analysis passes  NEW
 │   ├── ssa.py                   # SSA transformation with phi nodes
 │   ├── dataflow.py              # Reaching definitions & liveness
 │   └── dce.py                   # Dead code elimination
-├── egraph_bridge/               # SSA to e-graph optimization ⭐ NEW
+├── egraph_bridge/               # SSA to e-graph optimization  NEW
 │   ├── ssa_to_expr.py           # SSA → expression DAG
 │   ├── expr_to_egraph.py        # Expression → e-graph insertion
 │   ├── egraph_to_ssa.py         # E-graph → optimized SSA
@@ -76,7 +76,7 @@ capstone/
 │   ├── symbolic_executor.py     # Symbolic instruction execution
 │   ├── equivalence_checker.py   # SMT equivalence checking
 │   └── rule_verifier.py         # Verify learned rules
-├── pipeline/                    # Complete optimization pipelines ⭐ NEW
+├── pipeline/                    # Complete optimization pipelines  NEW
 │   ├── main.py                  # Main hierarchical pipeline
 │   ├── full_pipeline.py         # Frontend + optimization + verification
 │   └── ssa_egraph_pipeline.py   # SSA e-graph optimization
@@ -87,20 +87,20 @@ capstone/
 │   ├── persistence_feedback.md  # Persistence & feedback system
 │   ├── enhancements.md          # Metrics, sampling, cooldown
 │   ├── verification.md          # SMT verification guide
-│   ├── CONTROL_FLOW.md          # Control flow documentation ⭐ NEW
-│   └── MEMORY_OPERATIONS.md     # Memory operations guide ⭐ NEW
+│   ├── CONTROL_FLOW.md          # Control flow documentation  NEW
+│   └── MEMORY_OPERATIONS.md     # Memory operations guide  NEW
 ├── examples/                    # Demonstrations
 │   ├── demo_tier0.py            # Normalization demo
 │   ├── demo_tier1.py            # Peephole rules demo
 │   ├── demo_learned_rules.py    # Learned rules demo
 │   ├── demo_persistence_feedback.py  # Persistence & feedback demo
 │   ├── demo_enhancements.py     # New enhancements demo
-│   ├── demo_frontend.py         # Frontend compilation demo ⭐ NEW
-│   ├── demo_analysis.py         # SSA/dataflow/DCE demo ⭐ NEW
-│   ├── test_analysis.py         # Analysis tests ⭐ NEW
-│   ├── test_egraph_bridge.py    # E-graph bridge tests ⭐ NEW
+│   ├── demo_frontend.py         # Frontend compilation demo  NEW
+│   ├── demo_analysis.py         # SSA/dataflow/DCE demo  NEW
+│   ├── test_analysis.py         # Analysis tests  NEW
+│   ├── test_egraph_bridge.py    # E-graph bridge tests  NEW
 │   └── test_verification_with_z3.py  # Full verification test
-└── tests/                       # Test suites ⭐ NEW
+└── tests/                       # Test suites  NEW
     ├── test_bitwise_opcodes.py  # Bitwise operation tests
     ├── test_memory_ops.py       # Memory operation tests
     └── test_control_flow.py     # Control flow tests
@@ -202,7 +202,7 @@ See [docs/persistence_feedback.md](docs/persistence_feedback.md) for complete de
 
 ## Usage
 
-### Run Complete Frontend Pipeline ⭐ NEW
+### Run Complete Frontend Pipeline  NEW
 
 ```bash
 python pipeline/full_pipeline.py
@@ -218,7 +218,7 @@ Demonstrates the complete compilation pipeline:
 - Optimization
 - Verification
 
-### Run SSA E-Graph Optimization ⭐ NEW
+### Run SSA E-Graph Optimization  NEW
 
 ```bash
 python pipeline/ssa_egraph_pipeline.py
@@ -233,7 +233,7 @@ Demonstrates state-of-the-art optimization:
 - Constant folding
 - Optimized SSA reconstruction
 
-### Run Analysis Demos ⭐ NEW
+### Run Analysis Demos  NEW
 
 ```bash
 python examples/demo_analysis.py      # SSA, dataflow, DCE demo
@@ -262,7 +262,7 @@ This demonstrates:
 - ✓ Automatic pruning of low-performers
 - ✓ Complete closed-loop learning
 
-### Run Enhancements Demo ⭐ NEW
+### Run Enhancements Demo  NEW
 
 ```bash
 python examples/demo_enhancements.py
@@ -279,7 +279,7 @@ This demonstrates:
 
 ```bash
 # Frontend and compilation
-python examples/demo_frontend.py           # High-level language compilation ⭐ NEW
+python examples/demo_frontend.py           # High-level language compilation  NEW
 
 # Optimization tiers
 python examples/demo_tier0.py              # Normalization
@@ -291,7 +291,7 @@ python examples/demo_verification.py       # SMT verification
 python examples/test_verification_with_z3.py  # Full verification test (installs z3)
 
 # Control flow
-python demos/control_flow_demo.py          # If/while statements demo ⭐ NEW
+python demos/control_flow_demo.py          # If/while statements demo  NEW
 ```
 
 ### PowerShell Environment Setup
@@ -312,7 +312,7 @@ python pipeline/main.py
 - **[Enhancements](docs/enhancements.md)** - Metrics, sampling, and cooldown guide
 - **[Verification](docs/verification.md)** - SMT-based rule verification
 
-### New Features ⭐
+### New Features 
 
 - **[Control Flow](docs/CONTROL_FLOW.md)** - If/while statements and CFG construction
 - **[Memory Operations](docs/MEMORY_OPERATIONS.md)** - Load/store and stack operations
@@ -341,7 +341,7 @@ Improvement: 3 instructions
   Recording success for rule: double_add_folding
 ```
 
-### SSA E-Graph Optimization ⭐ NEW
+### SSA E-Graph Optimization  NEW
 
 ```
 Original SSA:
@@ -359,7 +359,7 @@ Optimized SSA (after algebraic simplification):
   MOV a_0, 0         # 0 * 5 → 0
 ```
 
-### Dead Code Elimination ⭐ NEW
+### Dead Code Elimination  NEW
 
 ```
 Before DCE (5 instructions):
@@ -386,15 +386,15 @@ Reduction: 3 instructions (60%)
 - Multi-target support (x86, ARM, RISC-V)
 - More structural optimizations
 
-### Implemented ✅
+### Implemented 
 
-- ✅ SSA transformation with phi nodes
-- ✅ Dataflow analysis (reaching definitions, liveness)
-- ✅ Dead code elimination
-- ✅ E-graph bridge for algebraic optimization
-- ✅ Frontend compiler (high-level language → assembly)
-- ✅ Control flow (if/while, CFG)
-- ✅ Memory operations (load/store, stack)
-- ✅ Bitwise operations (and/or/xor/not/shl/shr)
-- ✅ SMT verification with z3
-- ✅ Complete test suites (30+ tests)
+-  SSA transformation with phi nodes
+-  Dataflow analysis (reaching definitions, liveness)
+-  Dead code elimination
+-  E-graph bridge for algebraic optimization
+-  Frontend compiler (high-level language → assembly)
+-  Control flow (if/while, CFG)
+-  Memory operations (load/store, stack)
+-  Bitwise operations (and/or/xor/not/shl/shr)
+-  SMT verification with z3
+-  Complete test suites (30+ tests)

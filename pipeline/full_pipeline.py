@@ -5,9 +5,18 @@ Pipeline stages:
 1. Parse high-level code → AST
 2. Lower AST → three-address IR
 3. Generate assembly from IR
-4. Optimize with hierarchical rewrite engine
+4. Generate rewrites using hierarchical rewrite engine
 5. Display results
 """
+import sys
+import argparse
+from pathlib import Path
+
+
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 from typing import List
 from asm_ir import Instruction, BasicBlock, CFG
 from frontend import parse, lower_to_ir, ir_to_assembly
@@ -222,7 +231,7 @@ def print_instructions(instructions: List[Instruction], title: str = "Instructio
 
 def run_full_pipeline(source_code: str, verbose: bool = True, use_cfg: bool = False):
     """
-    Run the complete compilation and optimization pipeline.
+    Run the complete compilation and pipeline.
     
     Args:
         source_code: High-level source code string
@@ -279,93 +288,76 @@ def run_full_pipeline(source_code: str, verbose: bool = True, use_cfg: bool = Fa
             for label, block in cfg.blocks.items():
                 print(f"    {label}: {len(block.instructions)} instructions, successors: {block.successors}")
     
-    # Stage 5: Optimize with rewrite engine
+    # Stage 5: Optimize with true LLM Rewrite Engine
     if verbose:
-        if cfg:
-            print("\nStage 5: Optimization (per-block hierarchical rewrite)...")
-        else:
-            print("\nStage 5: Optimization (hierarchical rewrite)...")
-    
-    # Get optimization rules
-    tier1_rules = [
-        mov_elimination_rule,
-        add_sub_cancel_rule,
-        mov_overwrite_rule,
-        double_add_rule
-    ]
-    
-    if cfg:
-        # Optimize each block separately
-        for label, block in cfg.blocks.items():
-            if verbose:
-                print(f"  Optimizing {label}...")
+        print("\nStage 5: Generate rewrites using (LLM + Equality Saturation)...")
+        
+    try:
+        from egraph_bridge.egglog_pipeline import EqualitySaturationPipeline
+        
+        # Initialize pipeline connected to LLM and Z3
+        pipeline = EqualitySaturationPipeline(use_strength_reduction=True, use_llm_rules=True)
+        
+        # Format current assembly into raw text for the parser
+        raw_strings = [format_instruction(instr) for instr in asm_instructions]
+        
+        # Ask LLM for specialized rules based on this precise assembly sequence
+        if verbose:
+            print(f"\n  Fetching tailored rules from LLM for this sequence...")
             
-            egraph_api = StubEGraph()
-            egraph_api.block = block
+        pipeline.generate_llm_rules(prompt_context="\\n".join(raw_strings))
+        
+        # Feed the entire block of assembly into the egglog E-Graph at once 
+        # so it naturally builds an interconnected dependency AST
+        pipeline.add_instruction_sequence(raw_strings, "full_program")
             
-            engine = HierarchicalEngine(
-                egraph_api=egraph_api,
-                rules_by_tier={1: tier1_rules}
-            )
+        if verbose:
+            print("  Saturating E-Graph with learned rules...")
             
-            optimized_block = engine.run(block)
-            # Update block in place
-            block.instructions = optimized_block.instructions
-        
-        # Collect all optimized instructions from CFG
-        optimized_instructions = []
-        for label in sorted(cfg.blocks.keys()):
-            block = cfg.get_block(label)
-            if block and block.instructions:
-                optimized_instructions.extend(block.instructions)
-        
-        optimized_block = BasicBlock("combined", optimized_instructions)
-    else:
-        # Single block optimization (original behavior)
-        basic_block = BasicBlock("main", asm_instructions)
-        
-        egraph_api = StubEGraph()
-        egraph_api.block = basic_block
-        
-        engine = HierarchicalEngine(
-            egraph_api=egraph_api,
-            rules_by_tier={1: tier1_rules}
-        )
+        result = pipeline.optimize()
         
         if verbose:
-            print(f"  Running engine with {len(tier1_rules)} optimization rules...")
+            print(f"  ✓ Saturation complete")
+            print(f"    - LLM rules generated: {result.llm_rules_added}")
+            print(f"    - Iterations: {result.saturation_iterations}")
+            
+            print("\n" + "=" * 70)
+            print("E-GRAPH EQUIVALENCE RESULTS")
+            print("=" * 70)
+            for name, orig in result.original_expressions.items():
+                opt = result.optimized_expressions.get(name)
+                status = "✓ modified" if str(opt) != str(orig) else "-"
+                print(f"  {name}: {orig} → {opt}  [{status}]")
+            
+            # Print specifically the RL agent output that the user requested
+            print("\n--- Rewrite Trees (for RL Agent) ---")
+            print(result.get_rewrite_summary())
+                
+    except Exception as e:
+        print(f"  [!] Failed to run LLM engine: {e}")
         
-        optimized_block = engine.run(basic_block)
-    
-    # Stage 6: Results
-    print_instructions(optimized_block.instructions, "Optimized Assembly")
-    
-    # Summary
-    print("\n" + "=" * 70)
-    print("OPTIMIZATION SUMMARY")
-    print("=" * 70)
-    original_count = len(asm_instructions)
-    optimized_count = len(optimized_block.instructions)
-    reduction = original_count - optimized_count
-    reduction_pct = (reduction / original_count * 100) if original_count > 0 else 0
-    
-    print(f"  Original:  {original_count} instructions")
-    print(f"  Optimized: {optimized_count} instructions")
-    print(f"  Reduction: {reduction} instructions ({reduction_pct:.1f}%)")
-    
-    if reduction > 0:
-        print(f"  >> Successfully reduced code size!")
-    elif reduction == 0:
-        print(f"  >> No optimizations applied (already optimal)")
-    
-    print("=" * 70)
-    
-    return asm_instructions, optimized_block.instructions, cfg
+    return asm_instructions, asm_instructions, cfg
 
 
 def main():
     """Run example programs through the pipeline."""
-    
+    parser = argparse.ArgumentParser(description="Run the full compiler pipeline")
+    parser.add_argument("file", nargs="?", help="Input file containing high-level code to compile")
+    args = parser.parse_args()
+
+    if args.file:
+        try:
+            with open(args.file, 'r') as f:
+                code = f.read()
+            print("\n" + "=" * 70)
+            print(f"COMPILING FILE: {args.file}")
+            print("=" * 70)
+            run_full_pipeline(code)
+        except Exception as e:
+            print(f"Error reading {args.file}: {e}")
+            sys.exit(1)
+        return
+
     # Example 1: Simple arithmetic
     example1 = """a = 5
 b = a + 3

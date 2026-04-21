@@ -3,10 +3,67 @@ Rule verifier using SMT-based equivalence checking.
 
 Verifies that learned rules are semantically correct.
 """
+import re
 from typing import Optional
 from asm_ir import Instruction
 from learned_rules.rule_parser import ParsedRule
 from .equivalence_checker import are_sequences_equivalent, are_sequences_equivalent_with_model
+
+
+# Cache for memory address to variable name mapping
+_mem_var_counter = [0]
+_mem_var_map = {}
+
+
+def normalize_operand(operand: str) -> str:
+    """
+    Normalize an operand for Z3 verification.
+    
+    Converts memory addresses like 'DWORD PTR [rbp-4]' to simple variable names
+    that Z3 can understand. Also handles pattern variables and immediates.
+    
+    Args:
+        operand: Raw operand string
+    
+    Returns:
+        Normalized operand string
+    """
+    operand = operand.strip()
+    
+    # Remove comments (anything after semicolon)
+    if ';' in operand:
+        operand = operand.split(';')[0].strip()
+    
+    # Handle memory references: DWORD PTR [rbp-4], BYTE PTR [rax], etc.
+    mem_pattern = r'(BYTE|WORD|DWORD|QWORD)\s+PTR\s*\[([^\]]+)\]'
+    mem_match = re.match(mem_pattern, operand, re.IGNORECASE)
+    if mem_match:
+        # Convert to a symbolic variable name
+        addr_expr = mem_match.group(2).strip()
+        # Create a consistent variable name for this memory location
+        normalized_addr = re.sub(r'[^a-zA-Z0-9]', '_', addr_expr)
+        var_name = f"mem_{normalized_addr}"
+        return var_name
+    
+    # Handle simple bracket memory: [rbp-4]
+    bracket_pattern = r'\[([^\]]+)\]'
+    bracket_match = re.match(bracket_pattern, operand)
+    if bracket_match:
+        addr_expr = bracket_match.group(1).strip()
+        normalized_addr = re.sub(r'[^a-zA-Z0-9]', '_', addr_expr)
+        return f"mem_{normalized_addr}"
+    
+    # Handle labels like .L2, .L3 - convert to symbolic
+    if operand.startswith('.'):
+        return f"label_{operand[1:]}"
+    
+    # Handle pattern variables (r1, r2, src, dst, imm)
+    pattern_vars = ['r1', 'r2', 'r3', 'src', 'dst', 'imm', 'imm1', 'imm2']
+    if operand.lower() in pattern_vars:
+        return operand.lower()
+    
+    # Return as-is for simple registers (eax, ebx, etc.) and immediates
+    return operand
 
 
 def parse_instruction_string(instr_str: str) -> Optional[Instruction]:
@@ -19,11 +76,24 @@ def parse_instruction_string(instr_str: str) -> Optional[Instruction]:
     Returns:
         Instruction object or None if parsing fails
     """
-    parts = instr_str.strip().split()
+    # Remove comments
+    if ';' in instr_str:
+        instr_str = instr_str.split(';')[0]
+    
+    # Remove backticks that might have been added by LLM's markdown formatting
+    instr_str = instr_str.replace('`', '').strip()
+    if not instr_str:
+        return None
+    
+    parts = instr_str.split()
     if not parts:
         return None
     
     opcode = parts[0].upper()
+    
+    # Skip labels (lines ending with :)
+    if opcode.endswith(':'):
+        return None
     
     # Parse operands (simplified)
     if len(parts) < 2:
@@ -37,16 +107,20 @@ def parse_instruction_string(instr_str: str) -> Optional[Instruction]:
     if not operands:
         return Instruction(opcode, None, [])
     
+    # Normalize operands for Z3
+    normalized_operands = [normalize_operand(op) for op in operands]
+    
     # First operand is typically the destination
-    dst = operands[0] if operands else None
-    srcs = operands[1:] if len(operands) > 1 else []
+    dst = normalized_operands[0] if normalized_operands else None
+    srcs = normalized_operands[1:] if len(normalized_operands) > 1 else []
     
     return Instruction(opcode, dst, srcs)
 
 
 def verify_rule(parsed_rule: ParsedRule, 
                 timeout_ms: int = 5000,
-                return_counterexample: bool = False) -> bool | tuple[bool, dict]:
+                return_counterexample: bool = False,
+                check_flags: bool = False) -> bool | tuple[bool, dict]:
     """
     Verify that a parsed rule is semantically correct using SMT.
     
@@ -80,9 +154,9 @@ def verify_rule(parsed_rule: ParsedRule,
         
         # Check equivalence
         if return_counterexample:
-            return are_sequences_equivalent_with_model(lhs_instrs, rhs_instrs, timeout_ms)
+            return are_sequences_equivalent_with_model(lhs_instrs, rhs_instrs, timeout_ms, check_flags)
         else:
-            return are_sequences_equivalent(lhs_instrs, rhs_instrs, timeout_ms)
+            return are_sequences_equivalent(lhs_instrs, rhs_instrs, timeout_ms, check_flags)
     
     except Exception as e:
         print(f"Warning: Rule verification failed with exception: {e}")
@@ -90,7 +164,8 @@ def verify_rule(parsed_rule: ParsedRule,
 
 
 def verify_rule_with_details(parsed_rule: ParsedRule, 
-                             timeout_ms: int = 5000) -> dict:
+                             timeout_ms: int = 5000,
+                             check_flags: bool = False) -> dict:
     """
     Verify a rule and return detailed results.
     
@@ -115,7 +190,7 @@ def verify_rule_with_details(parsed_rule: ParsedRule,
     }
     
     try:
-        verified, counterexample = verify_rule(parsed_rule, timeout_ms, return_counterexample=True)
+        verified, counterexample = verify_rule(parsed_rule, timeout_ms, return_counterexample=True, check_flags=check_flags)
         result['verified'] = verified
         
         if not verified and counterexample:

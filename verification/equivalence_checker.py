@@ -17,7 +17,8 @@ from .symbolic_executor import execute_sequence
 
 def are_sequences_equivalent(lhs_seq: List[Instruction], 
                             rhs_seq: List[Instruction],
-                            timeout_ms: int = 5000) -> bool:
+                            timeout_ms: int = 5000,
+                            check_flags: bool = False) -> bool:
     """
     Check if two instruction sequences are semantically equivalent.
     
@@ -53,10 +54,11 @@ def are_sequences_equivalent(lhs_seq: List[Instruction],
             if reg in state_lhs.registers and reg in state_rhs.registers:
                 differences.append(state_lhs.registers[reg] != state_rhs.registers[reg])
         
-        # Check all flags
-        for flag in initial_state.flags:
-            if flag in state_lhs.flags and flag in state_rhs.flags:
-                differences.append(state_lhs.flags[flag] != state_rhs.flags[flag])
+        # Check all flags if requested
+        if check_flags:
+            for flag in initial_state.flags:
+                if flag in state_lhs.flags and flag in state_rhs.flags:
+                    differences.append(state_lhs.flags[flag] != state_rhs.flags[flag])
         
         if not differences:
             # No state elements to compare (shouldn't happen)
@@ -87,7 +89,8 @@ def are_sequences_equivalent(lhs_seq: List[Instruction],
 
 def are_sequences_equivalent_with_model(lhs_seq: List[Instruction], 
                                        rhs_seq: List[Instruction],
-                                       timeout_ms: int = 5000) -> tuple[bool, dict]:
+                                       timeout_ms: int = 5000,
+                                       check_flags: bool = False) -> tuple[bool, dict]:
     """
     Check equivalence and return counterexample if found.
     
@@ -115,9 +118,10 @@ def are_sequences_equivalent_with_model(lhs_seq: List[Instruction],
             if reg in state_lhs.registers and reg in state_rhs.registers:
                 differences.append(state_lhs.registers[reg] != state_rhs.registers[reg])
         
-        for flag in initial_state.flags:
-            if flag in state_lhs.flags and flag in state_rhs.flags:
-                differences.append(state_lhs.flags[flag] != state_rhs.flags[flag])
+        if check_flags:
+            for flag in initial_state.flags:
+                if flag in state_lhs.flags and flag in state_rhs.flags:
+                    differences.append(state_lhs.flags[flag] != state_rhs.flags[flag])
         
         if not differences:
             return True, {}

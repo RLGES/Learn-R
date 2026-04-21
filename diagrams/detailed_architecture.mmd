@@ -1,0 +1,283 @@
+%% Learn-R: LLM-Guided Equality Saturation for Assembly Optimization
+%% DETAILED ARCHITECTURE DIAGRAM - Every File and Its Purpose
+
+flowchart TB
+    %% ========== ROOT FILES ==========
+    subgraph ROOT["📁 ROOT"]
+        direction TB
+        CONFIG["config.py<br/>━━━━━━━━━━━━<br/>• LLM provider settings<br/>• API keys configuration<br/>• Model parameters<br/>• Timeout settings"]
+        RUN_PIPELINE["run_pipeline.py<br/>━━━━━━━━━━━━<br/>• CLI entry point<br/>• Orchestrates full pipeline<br/>• Handles arguments"]
+        FIX_FILES["fix_files.py<br/>━━━━━━━━━━━━<br/>• File repair utility"]
+        TEST_EGGLOG["test_egglog_integration.py<br/>━━━━━━━━━━━━<br/>• Egglog integration tests"]
+        TEST_RL_API["test_rl_api.py<br/>test_rl_api2.py<br/>━━━━━━━━━━━━<br/>• RL agent API tests"]
+    end
+
+    %% ========== ASM_IR MODULE ==========
+    subgraph ASM_IR["📝 asm_ir/ - Assembly IR Representation"]
+        direction TB
+        ASM_INIT["__init__.py<br/>━━━━━━━━━━━━<br/>• Exports: Instruction,<br/>  BasicBlock, CFG"]
+        
+        INSTRUCTION["instruction.py<br/>━━━━━━━━━━━━<br/>CLASS Instruction:<br/>• opcode, dst, srcs fields<br/>• reads() → registers read<br/>• writes() → registers written<br/>• get_flags_written()<br/>• is_memory_operand()<br/>• get_memory_base()<br/>• is_control_flow()<br/>• enable_ssa()<br/>• SSA operand tracking"]
+        
+        BASICBLOCK["basicblock.py<br/>━━━━━━━━━━━━<br/>CLASS BasicBlock:<br/>• label: block identifier<br/>• instructions: list<br/>• successors/predecessors<br/>• add_instruction()<br/>• is_entry/is_exit()"]
+        
+        CFG_FILE["cfg.py<br/>━━━━━━━━━━━━<br/>CLASS CFG:<br/>• blocks: Dict[str, BasicBlock]<br/>• entry_block, exit_block<br/>• add_block()<br/>• add_edge()<br/>• get_predecessors()<br/>• get_successors()<br/>• topological_sort()"]
+    end
+
+    %% ========== ANALYSIS MODULE ==========
+    subgraph ANALYSIS["📊 analysis/ - Program Analysis"]
+        direction TB
+        ANAL_INIT["__init__.py<br/>━━━━━━━━━━━━<br/>• Exports analysis utilities"]
+        
+        SSA_FILE["ssa.py<br/>━━━━━━━━━━━━<br/>CLASS SSABuilder:<br/>• transform() → SSA form<br/>• insert_phi_nodes()<br/>• rename_variables()<br/>• dominance_frontier()<br/>• compute_dominators()<br/>• Phi function insertion"]
+        
+        DATAFLOW["dataflow.py<br/>━━━━━━━━━━━━<br/>CLASS DataflowAnalysis:<br/>• reaching_definitions()<br/>• live_variables()<br/>• available_expressions()<br/>• forward/backward analysis<br/>• worklist algorithm"]
+        
+        DCE["dce.py<br/>━━━━━━━━━━━━<br/>CLASS DeadCodeEliminator:<br/>• eliminate() → remove dead<br/>• is_dead_instruction()<br/>• compute_liveness()<br/>• mark_essential_ops()<br/>• Handle side effects"]
+    end
+
+    %% ========== FRONTEND MODULE ==========
+    subgraph FRONTEND["🔧 frontend/ - Parsing & Code Gen"]
+        direction TB
+        FRONT_INIT["__init__.py<br/>━━━━━━━━━━━━<br/>• Exports parser, codegen"]
+        
+        PARSER["parser.py<br/>━━━━━━━━━━━━<br/>CLASS AssemblyParser:<br/>• parse() → AST<br/>• parse_instruction()<br/>• parse_operand()<br/>• parse_label()<br/>• tokenize()<br/>• Handle x86 syntax"]
+        
+        AST_NODES["ast_nodes.py<br/>━━━━━━━━━━━━<br/>CLASSES:<br/>• ProgramNode<br/>• FunctionNode<br/>• InstructionNode<br/>• OperandNode<br/>• LabelNode<br/>• CommentNode"]
+        
+        IR_LOWERING["ir_lowering.py<br/>━━━━━━━━━━━━<br/>CLASS IRLowering:<br/>• lower() → IR<br/>• lower_instruction()<br/>• lower_operand()<br/>• handle_memory_ops()<br/>• handle_control_flow()"]
+        
+        ASM_CODEGEN["asm_codegen.py<br/>━━━━━━━━━━━━<br/>CLASS AssemblyGenerator:<br/>• generate() → ASM string<br/>• emit_instruction()<br/>• emit_label()<br/>• format_operand()<br/>• Reconstruct assembly"]
+    end
+
+    %% ========== EGRAPH_BRIDGE MODULE ==========
+    subgraph EGRAPH["🔄 egraph_bridge/ - E-Graph Operations"]
+        direction TB
+        EG_INIT["__init__.py<br/>━━━━━━━━━━━━<br/>• Exports e-graph utilities"]
+        
+        SSA_TO_EXPR["ssa_to_expr.py<br/>━━━━━━━━━━━━<br/>CLASS SSAToExpr:<br/>• convert() → Expr tree<br/>• instruction_to_expr()<br/>• handle_phi_nodes()<br/>• handle_memory_ops()<br/>• Build expression DAG"]
+        
+        EXPR_TO_EG["expr_to_egraph.py<br/>━━━━━━━━━━━━<br/>CLASS ExprToEGraph:<br/>• convert() → EGraph<br/>• add_expression()<br/>• create_eclass()<br/>• merge_eclasses()"]
+        
+        SIMPLE_EG["simple_egraph.py<br/>━━━━━━━━━━━━<br/>CLASS SimpleEGraph:<br/>• Basic e-graph impl<br/>• add(), merge()<br/>• find(), extract()<br/>• Union-find structure"]
+        
+        EGG_EGRAPH["egg_egraph.py<br/>━━━━━━━━━━━━<br/>CLASS EgglogEGraph:<br/>• Egglog FFI wrapper<br/>• add_expression()<br/>• add_rule()<br/>• run_saturation()<br/>• extract_best()<br/>• get_equivalents()"]
+        
+        SSA_TO_EGGLOG["ssa_to_egglog.py<br/>━━━━━━━━━━━━<br/>CLASS SSAToEgglog:<br/>• convert() → Egglog expr<br/>• emit_define()<br/>• emit_rewrite()<br/>• Handle all opcodes"]
+        
+        EGGLOG_PIPE["egglog_pipeline.py<br/>━━━━━━━━━━━━<br/>CLASS EqualitySaturationPipeline:<br/>• add_expression()<br/>• add_instruction_sequence()<br/>• generate_llm_rules()<br/>• optimize() → result<br/>• get_rewrite_trees()"]
+        
+        EG_TO_SSA["egraph_to_ssa.py<br/>━━━━━━━━━━━━<br/>CLASS EGraphToSSA:<br/>• convert() → SSA<br/>• extract_sequence()<br/>• rebuild_instructions()<br/>• Handle phi nodes"]
+    end
+
+    %% ========== HIERARCHICAL_ENGINE MODULE ==========
+    subgraph HIER_ENGINE["⚡ hierarchical_engine/ - Optimization Engine"]
+        direction TB
+        HIER_INIT["__init__.py<br/>━━━━━━━━━━━━<br/>• Exports engine classes"]
+        
+        ENGINE["engine.py<br/>━━━━━━━━━━━━<br/>CLASS HierarchicalEngine:<br/>• optimize() → result<br/>• apply_tier()<br/>• schedule_rules()<br/>• track_rewrites()<br/>• Cost model evaluation"]
+        
+        MATCHER["matcher.py<br/>━━━━━━━━━━━━<br/>CLASS PatternMatcher:<br/>• match() → bindings<br/>• match_instruction()<br/>• match_operand()<br/>• Wildcard patterns<br/>• Capture variables"]
+        
+        TIER_SCHED["tier_scheduler.py<br/>━━━━━━━━━━━━<br/>CLASS TierScheduler:<br/>• schedule() → order<br/>• get_tier_rules()<br/>• priority_ordering()<br/>• Phase management"]
+        
+        DEPENDENCY["dependency.py<br/>━━━━━━━━━━━━<br/>CLASS DependencyTracker:<br/>• compute_deps()<br/>• get_dependencies()<br/>• is_independent()<br/>• Data + control deps"]
+        
+        EGRAPH_API["egraph_api.py<br/>━━━━━━━━━━━━<br/>CLASS EGraphAPI:<br/>• Unified API layer<br/>• add(), merge()<br/>• query(), extract()<br/>• Backend abstraction"]
+    end
+
+    %% ========== REWRITE_RULES MODULE ==========
+    subgraph REWRITE["📐 rewrite_rules/ - Optimization Rules"]
+        direction TB
+        RW_INIT["__init__.py<br/>━━━━━━━━━━━━<br/>• Exports all rule tiers"]
+        
+        RULE_BASE["rule_base.py<br/>━━━━━━━━━━━━<br/>CLASS RewriteRule:<br/>• pattern: LHS pattern<br/>• replacement: RHS<br/>• precondition()<br/>• apply() → rewritten"]
+        
+        subgraph TIER0["tier0_normalization/"]
+            direction TB
+            T0_INIT["__init__.py"]
+            BASIC_NORM["basic_normalization.py<br/>━━━━━━━━━━━━<br/>RULES:<br/>• Canonical ordering<br/>• Immediate folding<br/>• NOP removal"]
+        end
+        
+        subgraph TIER1["tier1_peephole/"]
+            direction TB
+            T1_INIT["__init__.py"]
+            DOUBLE_ADD["double_add.py<br/>━━━━━━━━━━━━<br/>• ADD x, n + ADD x, m<br/>  → ADD x, (n+m)"]
+            CANCEL_ADD_SUB["cancel_add_sub.py<br/>━━━━━━━━━━━━<br/>• ADD x, n; SUB x, n<br/>  → (eliminated)"]
+            MOV_ELIM["mov_elimination.py<br/>━━━━━━━━━━━━<br/>• MOV x, x → (removed)"]
+            MOV_OVER["mov_overwrite.py<br/>━━━━━━━━━━━━<br/>• MOV x, a; MOV x, b<br/>  → MOV x, b"]
+            BITWISE["bitwise_identities.py<br/>━━━━━━━━━━━━<br/>• XOR x, x → MOV x, 0<br/>• AND x, 0 → MOV x, 0<br/>• OR x, 0 → (no-op)"]
+            LOAD_STORE["load_store.py<br/>━━━━━━━━━━━━<br/>• Store-load forwarding<br/>• Dead store removal"]
+        end
+        
+        subgraph TIER2["tier2_structural/"]
+            direction TB
+            T2_INIT["__init__.py"]
+            SWAP_IND["swap_independent.py<br/>━━━━━━━━━━━━<br/>• Reorder independent<br/>  instructions for ILP"]
+        end
+    end
+
+    %% ========== LEARNED_RULES MODULE ==========
+    subgraph LEARNED["🤖 learned_rules/ - LLM Rule System"]
+        direction TB
+        LR_INIT["__init__.py<br/>━━━━━━━━━━━━<br/>• Exports learned rule utils"]
+        
+        LLM_GEN["llm_rule_generator.py<br/>━━━━━━━━━━━━<br/>FUNCTIONS:<br/>• call_llm_api() → response<br/>• _call_openai()<br/>• _call_anthropic()<br/>• _call_google()<br/>• _call_lmstudio()<br/>• _call_huggingface()<br/>• generate_candidate_rules()<br/>• check_llm_availability()"]
+        
+        RULE_PARSER["rule_parser.py<br/>━━━━━━━━━━━━<br/>CLASS ParsedRule:<br/>• lhs_seq, rhs_seq<br/>• parse_llm_output()<br/>• extract_rule_text()<br/>• validate_syntax()"]
+        
+        RULE_FILTER["rule_filter.py<br/>━━━━━━━━━━━━<br/>CLASS RuleFilter:<br/>• filter() → valid rules<br/>• is_syntactically_valid()<br/>• is_semantically_sound()<br/>• check_operand_compat()"]
+        
+        RULE_MEM["rule_memory.py<br/>━━━━━━━━━━━━<br/>CLASS RuleMemory:<br/>• store() → persist rule<br/>• retrieve() → rules<br/>• get_by_pattern()<br/>• SQLite backend"]
+        
+        RULE_STORE["rule_storage.py<br/>━━━━━━━━━━━━<br/>CLASS RuleStorage:<br/>• save_rule()<br/>• load_rules()<br/>• JSON serialization"]
+        
+        LEARNED_MGR["learned_rule_manager.py<br/>━━━━━━━━━━━━<br/>CLASS LearnedRuleManager:<br/>• generate_and_verify()<br/>• add_verified_rule()<br/>• get_active_rules()<br/>• Orchestrates LLM → verify"]
+        
+        RULE_2_EGG["rule_to_egglog.py<br/>━━━━━━━━━━━━<br/>CLASS RuleToEgglog:<br/>• convert() → Egglog rule<br/>• emit_lhs(), emit_rhs()<br/>• EgglogRule dataclass"]
+        
+        WIN_SAMPLER["window_sampler.py<br/>━━━━━━━━━━━━<br/>CLASS WindowSampler:<br/>• sample() → windows<br/>• sliding_window()<br/>• filter_interesting()<br/>• Extract code samples"]
+    end
+
+    %% ========== VERIFICATION MODULE ==========
+    subgraph VERIFY["✅ verification/ - SMT Verification"]
+        direction TB
+        VER_INIT["__init__.py<br/>━━━━━━━━━━━━<br/>• Exports verification utils"]
+        
+        SYM_STATE["symbolic_state.py<br/>━━━━━━━━━━━━<br/>CLASS SymbolicState:<br/>• registers: Dict[str,Z3]<br/>• memory: Array<br/>• flags: Dict[str,Z3]<br/>• read_reg(), write_reg()<br/>• read_mem(), write_mem()"]
+        
+        SYM_EXEC["symbolic_executor.py<br/>━━━━━━━━━━━━<br/>CLASS SymbolicExecutor:<br/>• execute() → final state<br/>• execute_instruction()<br/>• handle_MOV/ADD/SUB/...<br/>• handle_bitwise_ops()<br/>• handle_memory_ops()"]
+        
+        EQUIV_CHK["equivalence_checker.py<br/>━━━━━━━━━━━━<br/>FUNCTIONS:<br/>• are_sequences_equivalent()<br/>• are_sequences_equivalent_with_model()<br/>→ Uses Z3 SMT solver<br/>→ Compares final states"]
+        
+        RULE_VER["rule_verifier.py<br/>━━━━━━━━━━━━<br/>FUNCTIONS:<br/>• verify_rule() → bool<br/>• verify_rule_with_details()<br/>• normalize_operand()<br/>• parse_instruction_string()"]
+    end
+
+    %% ========== PIPELINE MODULE ==========
+    subgraph PIPELINE["🔀 pipeline/ - Orchestration"]
+        direction TB
+        PIPE_INIT["__init__.py<br/>━━━━━━━━━━━━<br/>• Exports pipeline classes"]
+        
+        PIPE_MAIN["main.py<br/>━━━━━━━━━━━━<br/>FUNCTION main():<br/>• Parse arguments<br/>• Load input assembly<br/>• Run optimization<br/>• Write output"]
+        
+        FULL_PIPE["full_pipeline.py<br/>━━━━━━━━━━━━<br/>CLASS FullPipeline:<br/>• run() → optimized<br/>• parse_input()<br/>• build_cfg()<br/>• transform_ssa()<br/>• optimize_egraph()<br/>• generate_output()"]
+        
+        SSA_EG_PIPE["ssa_egraph_pipeline.py<br/>━━━━━━━━━━━━<br/>CLASS SSAEGraphPipeline:<br/>• run() → optimized<br/>• ssa_to_egraph()<br/>• apply_rewrites()<br/>• extract_best()"]
+    end
+
+    %% ========== EVALUATION MODULE ==========
+    subgraph EVAL["📈 evaluation/"]
+        direction TB
+        EVAL_INIT["__init__.py"]
+        RULE_METRICS["rule_metrics.py<br/>━━━━━━━━━━━━<br/>CLASS RuleMetrics:<br/>• count_instructions()<br/>• measure_reduction()<br/>• track_rule_hits()<br/>• compute_coverage()"]
+    end
+
+    %% ========== TESTS MODULE ==========
+    subgraph TESTS["🧪 tests/"]
+        direction TB
+        TEST_BITWISE["test_bitwise_opcodes.py<br/>━━━━━━━━━━━━<br/>• AND/OR/XOR/NOT tests"]
+        TEST_CTRL["test_control_flow.py<br/>━━━━━━━━━━━━<br/>• JMP/JE/JNE tests<br/>• Branch optimization"]
+        TEST_MEM["test_memory_ops.py<br/>━━━━━━━━━━━━<br/>• LOAD/STORE tests<br/>• Memory aliasing"]
+        TEST_E2E["test_e2e_persistence.py<br/>━━━━━━━━━━━━<br/>• End-to-end tests<br/>• Rule persistence"]
+    end
+
+    %% ========== EXAMPLES MODULE ==========
+    subgraph EXAMPLES["📚 examples/"]
+        direction TB
+        DEMO_ANAL["demo_analysis.py"]
+        DEMO_DEP["demo_dependency_and_tiers.py"]
+        DEMO_ENG["demo_engine_integration.py"]
+        DEMO_ENH["demo_enhancements.py"]
+        DEMO_LEARN["demo_learned_rules.py"]
+        DEMO_MEM["demo_memory_loads.py"]
+        DEMO_NEW["demo_new_features.py"]
+        DEMO_PERS["demo_persistence_feedback.py"]
+        DEMO_PHI["demo_phi_optimization.py"]
+        DEMO_VER["demo_verification.py"]
+        TEST_EGBR["test_egraph_bridge.py"]
+        TEST_VER_Z3["test_verification_with_z3.py"]
+    end
+
+    %% ========== DEMOS MODULE ==========
+    subgraph DEMOS["🎬 demos/"]
+        direction TB
+        BIT_DEMO["bitwise_demo.py<br/>━━━━━━━━━━━━<br/>• XOR x,x optimization<br/>• Bitwise identity demo"]
+        CTRL_DEMO["control_flow_demo.py<br/>━━━━━━━━━━━━<br/>• Branch optimization<br/>• CFG transformation demo"]
+    end
+
+    %% ========== DOCS MODULE ==========
+    subgraph DOCS["📖 docs/"]
+        direction TB
+        DOC_BIT["BITWISE_OPERATIONS.md"]
+        DOC_CTRL["CONTROL_FLOW.md"]
+        DOC_ENH["ENHANCEMENTS_SUMMARY.md"]
+        DOC_FEAT["FEATURES.md"]
+        DOC_FRONT["FRONTEND_PIPELINE.md"]
+        DOC_IMPL["IMPLEMENTATION_STEPS.md"]
+        DOC_SUM["IMPLEMENTATION_SUMMARY.md"]
+        DOC_LEARN["LEARNED_RULES_SYSTEM.md"]
+        DOC_MEM["MEMORY_OPERATIONS.md"]
+        DOC_QUICK["QUICKSTART_PERSISTENCE.md"]
+        DOC_VER["VERIFICATION_SUMMARY.md"]
+    end
+
+    %% ========== DATA FLOW CONNECTIONS ==========
+    
+    %% Input to Frontend
+    ROOT --> FRONTEND
+    
+    %% Frontend to ASM_IR
+    PARSER --> AST_NODES
+    AST_NODES --> IR_LOWERING
+    IR_LOWERING --> INSTRUCTION
+    INSTRUCTION --> BASICBLOCK
+    BASICBLOCK --> CFG_FILE
+    
+    %% ASM_IR to Analysis
+    CFG_FILE --> SSA_FILE
+    SSA_FILE --> DATAFLOW
+    DATAFLOW --> DCE
+    
+    %% Analysis to E-Graph
+    SSA_FILE --> SSA_TO_EXPR
+    SSA_TO_EXPR --> EXPR_TO_EG
+    EXPR_TO_EG --> SIMPLE_EG
+    SSA_FILE --> SSA_TO_EGGLOG
+    SSA_TO_EGGLOG --> EGG_EGRAPH
+    EGG_EGRAPH --> EGGLOG_PIPE
+    
+    %% Rewrite Rules to Engine
+    RULE_BASE --> TIER0
+    RULE_BASE --> TIER1
+    RULE_BASE --> TIER2
+    TIER0 --> TIER_SCHED
+    TIER1 --> TIER_SCHED
+    TIER2 --> TIER_SCHED
+    TIER_SCHED --> ENGINE
+    MATCHER --> ENGINE
+    DEPENDENCY --> ENGINE
+    
+    %% LLM System
+    CONFIG --> LLM_GEN
+    LLM_GEN --> RULE_PARSER
+    RULE_PARSER --> RULE_FILTER
+    RULE_FILTER --> RULE_VER
+    RULE_VER --> LEARNED_MGR
+    LEARNED_MGR --> RULE_MEM
+    LEARNED_MGR --> RULE_2_EGG
+    RULE_2_EGG --> EGGLOG_PIPE
+    WIN_SAMPLER --> LLM_GEN
+    
+    %% Verification
+    SYM_STATE --> SYM_EXEC
+    SYM_EXEC --> EQUIV_CHK
+    EQUIV_CHK --> RULE_VER
+    
+    %% Pipeline orchestration
+    PIPE_MAIN --> FULL_PIPE
+    FULL_PIPE --> SSA_EG_PIPE
+    SSA_EG_PIPE --> EGGLOG_PIPE
+    
+    %% Output
+    EG_TO_SSA --> ASM_CODEGEN
+    EGGLOG_PIPE --> RULE_METRICS
