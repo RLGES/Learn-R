@@ -1,0 +1,188 @@
+{
+  "config": {
+    "no_llm": false,
+    "provider": null,
+    "verify": false,
+    "simulations": 100,
+    "steps": 8,
+    "rollout_depth": 5,
+    "sat_iters": 8,
+    "seed": 42,
+    "quiet": true
+  },
+  "n_static_rules": 32,
+  "n_learned_rules": 2,
+  "results": [
+    {
+      "test_case": "x_plus_zero_times_one",
+      "initial_cost": 8,
+      "mcts_cost": 2,
+      "mcts_expr": "Asm.var(\"x\")",
+      "mcts_actions": [
+        "static/algebraic_0",
+        "static/algebraic_4",
+        "static/algebraic_10",
+        "static/algebraic_13",
+        "static/strength_4",
+        "static/algebraic_13",
+        "static/algebraic_3",
+        "static/algebraic_12"
+      ],
+      "saturation_cost": 2,
+      "saturation_expr": "Asm.var(\"x\")",
+      "mcts_time_sec": 4.157
+    },
+    {
+      "test_case": "double_add_const",
+      "initial_cost": 8,
+      "mcts_cost": 8,
+      "mcts_expr": "Asm.var(\"x\") + Asm(1) + Asm(1)",
+      "mcts_actions": [
+        "static/algebraic_7",
+        "static/algebraic_22",
+        "static/algebraic_10",
+        "static/algebraic_13",
+        "static/strength_4",
+        "static/algebraic_13",
+        "static/algebraic_3",
+        "static/algebraic_12"
+      ],
+      "saturation_cost": 8,
+      "saturation_expr": "Asm.var(\"x\") + Asm(1) + Asm(1)",
+      "mcts_time_sec": 4.446
+    },
+    {
+      "test_case": "add_then_cancel_sub",
+      "initial_cost": 8,
+      "mcts_cost": 8,
+      "mcts_expr": "Asm.var(\"x\") + Asm.var(\"y\") - Asm.var(\"y\")",
+      "mcts_actions": [
+        "static/algebraic_7",
+        "static/algebraic_22",
+        "static/algebraic_10",
+        "static/algebraic_13",
+        "static/strength_4",
+        "static/algebraic_13",
+        "static/algebraic_3",
+        "static/algebraic_12"
+      ],
+      "saturation_cost": 8,
+      "saturation_expr": "Asm.var(\"x\") + Asm.var(\"y\") - Asm.var(\"y\")",
+      "mcts_time_sec": 4.137
+    },
+    {
+      "test_case": "mul_by_two",
+      "initial_cost": 5,
+      "mcts_cost": 5,
+      "mcts_expr": "Asm.var(\"x\") * Asm(2)",
+      "mcts_actions": [
+        "static/algebraic_7",
+        "static/algebraic_22",
+        "static/algebraic_10",
+        "static/algebraic_13",
+        "static/strength_4",
+        "static/algebraic_13",
+        "static/algebraic_3",
+        "static/algebraic_12"
+      ],
+      "saturation_cost": 5,
+      "saturation_expr": "Asm.var(\"x\") * Asm(2)",
+      "mcts_time_sec": 3.889
+    },
+    {
+      "test_case": "add_self_then_mul",
+      "initial_cost": 8,
+      "mcts_cost": 5,
+      "mcts_expr": "Asm.var(\"x\") + Asm.var(\"x\")",
+      "mcts_actions": [
+        "static/algebraic_4",
+        "static/algebraic_22",
+        "static/algebraic_10",
+        "static/algebraic_13",
+        "static/strength_4",
+        "static/algebraic_13",
+        "static/algebraic_3",
+        "static/algebraic_12"
+      ],
+      "saturation_cost": 5,
+      "saturation_expr": "Asm.var(\"x\") + Asm.var(\"x\")",
+      "mcts_time_sec": 4.043
+    },
+    {
+      "test_case": "mov_add_zero_chain",
+      "initial_cost": 5,
+      "mcts_cost": 2,
+      "mcts_expr": "Asm.var(\"r1\")",
+      "mcts_actions": [
+        "static/algebraic_0",
+        "static/algebraic_22",
+        "static/algebraic_10",
+        "static/algebraic_13",
+        "static/strength_4",
+        "static/algebraic_13",
+        "static/algebraic_3",
+        "static/algebraic_12"
+      ],
+      "saturation_cost": 2,
+      "saturation_expr": "Asm.var(\"r1\")",
+      "mcts_time_sec": 3.976
+    },
+    {
+      "test_case": "const_fold_chain",
+      "initial_cost": 11,
+      "mcts_cost": 11,
+      "mcts_expr": "(Asm(2) + Asm(3)) * Asm(4) + Asm.var(\"x\")",
+      "mcts_actions": [
+        "static/algebraic_7",
+        "static/algebraic_22",
+        "static/algebraic_10",
+        "static/algebraic_13",
+        "static/strength_4",
+        "static/algebraic_13",
+        "static/algebraic_3",
+        "static/algebraic_12"
+      ],
+      "saturation_cost": 11,
+      "saturation_expr": "(Asm(2) + Asm(3)) * Asm(4) + Asm.var(\"x\")",
+      "mcts_time_sec": 4.353
+    },
+    {
+      "test_case": "xor_self_then_or_zero",
+      "initial_cost": 8,
+      "mcts_cost": 2,
+      "mcts_expr": "Asm(0)",
+      "mcts_actions": [
+        "static/algebraic_10",
+        "static/algebraic_15",
+        "static/algebraic_10",
+        "static/algebraic_13",
+        "static/strength_4",
+        "static/algebraic_13",
+        "static/algebraic_3",
+        "static/algebraic_12"
+      ],
+      "saturation_cost": 2,
+      "saturation_expr": "Asm(0)",
+      "mcts_time_sec": 3.903
+    },
+    {
+      "test_case": "composite_expression",
+      "initial_cost": 17,
+      "mcts_cost": 11,
+      "mcts_expr": "Asm.var(\"x\") + (Asm.var(\"x\") * Asm(2) - Asm.var(\"x\"))",
+      "mcts_actions": [
+        "static/algebraic_0",
+        "static/algebraic_4",
+        "static/algebraic_10",
+        "static/algebraic_13",
+        "static/strength_4",
+        "static/algebraic_13",
+        "static/algebraic_3",
+        "static/algebraic_12"
+      ],
+      "saturation_cost": 11,
+      "saturation_expr": "Asm.var(\"x\") + (Asm.var(\"x\") * Asm(2) - Asm.var(\"x\"))",
+      "mcts_time_sec": 4.576
+    }
+  ]
+}
